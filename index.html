@@ -3,575 +3,572 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#000000">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="CO₂ Training">
-    <title>CO₂ Training - Static Apnea Trainer</title>
-    <link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIkNPMiBUcmFpbmluZyIsCiAgInNob3J0X25hbWUiOiAiQ08yIFRyYWluaW5nIiwKICAiZGVzY3JpcHRpb24iOiAiU3RhdGljIEFwbmVhIFRyYWluZXIiLAogICJzdGFydF91cmwiOiAiLyIsCiAgImRpc3BsYXkiOiAic3RhbmRhbG9uZSIsCiAgImJhY2tncm91bmRfY29sb3IiOiAiIzAwMDAwMCIsCiAgInRoZW1lX2NvbG9yIjogIiMwMDAwMDAiLAogICJpY29ucyI6IFsKICAgIHsKICAgICAgInNyYyI6ICJkYXRhOmltYWdlL3N2Zyt4bWw7YmFzZTY0LFBITjJaeUI0Yld4dWN6MGlhSFIwY0RvdkwzZDNkeTUzTXk1dmNtY3ZNakF3TUM5emRtY2lJSGRwWkhSb1BTSXlOVFlpSUdobGFXZG9kRDBpTWpVMklqNDhZMmx5WTJ4bElHTjRQU0l4TWpnaUlHTjVQU0l4TWpnaUlISXlPU0k0TVNJZ1ptbHNiRDBpSTJONVpXNDBNeUl2UGp3dmMzWm5QZz09IiwKICAgICAgInNpemVzIjogIjI1NngyNTYiLAogICAgICAidHlwZSI6ICJpbWFnZS9zdmcreG1sIgogICAgfQogIF0KfQ==">
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <title>CO₂ Training - Custom Static Apnea Trainer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Prevent zoom on iOS when focusing inputs */
-        input, select, textarea {
-            font-size: 16px !important;
-        }
-        
-        /* Hide address bar on mobile */
-        html, body {
-            height: 100vh;
-            overflow-x: hidden;
-        }
-        
-        /* Prevent pull-to-refresh */
-        body {
-            overscroll-behavior: none;
-            -webkit-overflow-scrolling: touch;
-            touch-action: manipulation;
-        }
-        
-        /* Better button touch targets */
-        button {
-            min-height: 44px;
-            min-width: 44px;
-        }
-        
-        /* Prevent text selection on UI elements */
-        .no-select {
-            -webkit-user-select: none;
-            -moz-user-select: none;
-            -ms-user-select: none;
-            user-select: none;
-        }
+        body { margin: 0; padding: 0; }
+        #root { width: 100vw; min-height: 100vh; }
     </style>
 </head>
-<body class="bg-black">
+<body>
     <div id="root"></div>
-    
+
     <script type="text/babel">
         const { useState, useEffect, useRef, useCallback } = React;
-        
-        // --- Data for CO2 Tables ---
-        const co2Tables = {
-          'Week 1': [
-            { bh: 90, rb: 120 }, { bh: 90, rb: 115 }, { bh: 90, rb: 110 },
-            { bh: 90, rb: 105 }, { bh: 90, rb: 100 }, { bh: 90, rb: 95 },
-            { bh: 90, rb: 90 }, { bh: 90, rb: 85 }
-          ],
-          'Week 2': [
-            { bh: 120, rb: 110 }, { bh: 120, rb: 105 }, { bh: 120, rb: 100 },
-            { bh: 120, rb: 95 }, { bh: 120, rb: 90 }, { bh: 120, rb: 85 },
-            { bh: 120, rb: 80 }, { bh: 120, rb: 75 }
-          ],
-          'Week 3': [
-            { bh: 150, rb: 100 }, { bh: 150, rb: 95 }, { bh: 150, rb: 90 },
-            { bh: 150, rb: 85 }, { bh: 150, rb: 80 }, { bh: 150, rb: 75 },
-            { bh: 150, rb: 70 }, { bh: 150, rb: 65 }
-          ],
-          'Week 4': [
-            { bh: 180, rb: 90 }, { bh: 180, rb: 85 }, { bh: 180, rb: 80 },
-            { bh: 180, rb: 75 }, { bh: 180, rb: 70 }, { bh: 180, rb: 65 },
-            { bh: 180, rb: 60 }, { bh: 180, rb: 55 }
-          ],
-          'Week 5': [
-            { bh: 240, rb: 80 }, { bh: 240, rb: 75 }, { bh: 240, rb: 70 },
-            { bh: 240, rb: 65 }, { bh: 240, rb: 60 }, { bh: 240, rb: 55 },
-            { bh: 240, rb: 50 }, { bh: 240, rb: 45 }
-          ],
-          'Week 6': [
-            { bh: 270, rb: 70 }, { bh: 270, rb: 65 }, { bh: 300, rb: 60 },
-            { bh: 300, rb: 55 }, { bh: 330, rb: 60 }, { bh: 330, rb: 55 },
-            { bh: 360, rb: 50 }, { bh: 360, rb: 45 }
-          ]
-        };
 
         // --- Helper Functions ---
         const formatTime = (seconds) => {
-          const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
-          const secs = (seconds % 60).toString().padStart(2, '0');
-          return `${mins}:${secs}`;
+            const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const secs = (seconds % 60).toString().padStart(2, '0');
+            return `${mins}:${secs}`;
         };
 
-        // --- Audio Cue Hook (mobile optimized) ---
+        // Generate CO2 tables based on user input
+        const generateCO2Tables = (initialBH, initialRecovery, weeks = 6) => {
+            const tables = {};
+            
+            for (let week = 1; week <= weeks; week++) {
+                const weekName = `Week ${week}`;
+                const weeklyTable = [];
+                
+                // Calculate BH progression (increases each week)
+                const bhIncrement = Math.floor(initialBH * 0.3); // 30% increase per week
+                const weeklyBH = initialBH + (bhIncrement * (week - 1));
+                
+                // Calculate recovery progression (decreases each week)
+                const recoveryDecrement = Math.floor(initialRecovery * 0.15); // 15% decrease per week
+                const baseRecovery = Math.max(30, initialRecovery - (recoveryDecrement * (week - 1)));
+                
+                // Generate 8 reps per week with decreasing recovery times
+                for (let rep = 0; rep < 8; rep++) {
+                    const recoveryReduction = Math.floor(baseRecovery * 0.05 * rep); // 5% reduction per rep
+                    const finalRecovery = Math.max(15, baseRecovery - recoveryReduction);
+                    
+                    weeklyTable.push({
+                        bh: weeklyBH,
+                        rb: finalRecovery
+                    });
+                }
+                
+                tables[weekName] = weeklyTable;
+            }
+            
+            return tables;
+        };
+
+        // --- Audio Cue Hook ---
         const useAudio = () => {
-          const audioContextRef = useRef(null);
-          const [audioEnabled, setAudioEnabled] = useState(false);
+            const audioContextRef = useRef(null);
 
-          const ensureContext = useCallback(async () => {
-            if (!audioContextRef.current) {
-              const Ctx = window.AudioContext || window.webkitAudioContext;
-              if (!Ctx) return null;
-              audioContextRef.current = new Ctx();
-            }
-            const ctx = audioContextRef.current;
-            if (ctx.state === 'suspended') {
-              try { 
-                await ctx.resume(); 
-                setAudioEnabled(true);
-              } catch (e) { 
-                console.warn('Audio context resume failed:', e);
-                return null;
-              }
-            }
-            return audioContextRef.current;
-          }, []);
+            const ensureContext = useCallback(async () => {
+                if (!audioContextRef.current) {
+                    const Ctx = window.AudioContext || window.webkitAudioContext;
+                    if (!Ctx) return null;
+                    audioContextRef.current = new Ctx();
+                }
+                const ctx = audioContextRef.current;
+                if (ctx.state === 'suspended') {
+                    try { await ctx.resume(); } catch (e) { /* ignore */ }
+                }
+                return audioContextRef.current;
+            }, []);
 
-          const playSound = useCallback(async (type) => {
-            const ctx = await ensureContext();
-            if (!ctx) return;
+            const playSound = useCallback(async (type) => {
+                const ctx = await ensureContext();
+                if (!ctx) return;
 
-            try {
-              const oscillator = ctx.createOscillator();
-              const gainNode = ctx.createGain();
+                const oscillator = ctx.createOscillator();
+                const gainNode = ctx.createGain();
 
-              oscillator.connect(gainNode);
-              gainNode.connect(ctx.destination);
+                oscillator.connect(gainNode);
+                gainNode.connect(ctx.destination);
 
-              let duration = 0.6;
+                let duration = 0.6;
 
-              if (type === 'start') {
-                oscillator.type = 'sine';
-                oscillator.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
-                gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5);
-                duration = 0.5;
-              } else if (type === 'end') {
-                oscillator.type = 'triangle';
-                oscillator.frequency.setValueAtTime(880, ctx.currentTime); // A5
-                gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1);
-                duration = 1.0;
-              } else if (type === 'rep') {
-                oscillator.type = 'square';
-                oscillator.frequency.setValueAtTime(440, ctx.currentTime); // A4
-                gainNode.gain.setValueAtTime(0.25, ctx.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.25);
-                duration = 0.25;
-              }
+                if (type === 'start') {
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(523.25, ctx.currentTime);
+                    gainNode.gain.setValueAtTime(0.5, ctx.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5);
+                    duration = 0.5;
+                } else if (type === 'end') {
+                    oscillator.type = 'triangle';
+                    oscillator.frequency.setValueAtTime(880, ctx.currentTime);
+                    gainNode.gain.setValueAtTime(0.5, ctx.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1);
+                    duration = 1.0;
+                } else if (type === 'rep') {
+                    oscillator.type = 'square';
+                    oscillator.frequency.setValueAtTime(440, ctx.currentTime);
+                    gainNode.gain.setValueAtTime(0.35, ctx.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.25);
+                    duration = 0.25;
+                }
 
-              oscillator.start(ctx.currentTime);
-              oscillator.stop(ctx.currentTime + duration + 0.02);
-            } catch (e) {
-              console.warn('Sound playback failed:', e);
-            }
-          }, [ensureContext]);
+                oscillator.start(ctx.currentTime);
+                oscillator.stop(ctx.currentTime + duration + 0.02);
+            }, [ensureContext]);
 
-          return { playSound, ensureContext, audioEnabled };
-        };
-
-        // --- Wake Lock Hook for mobile ---
-        const useWakeLock = () => {
-          const wakeLockRef = useRef(null);
-
-          const requestWakeLock = useCallback(async () => {
-            if ('wakeLock' in navigator) {
-              try {
-                wakeLockRef.current = await navigator.wakeLock.request('screen');
-                console.log('Wake lock acquired');
-              } catch (e) {
-                console.warn('Wake lock failed:', e);
-              }
-            }
-          }, []);
-
-          const releaseWakeLock = useCallback(async () => {
-            if (wakeLockRef.current) {
-              try {
-                await wakeLockRef.current.release();
-                wakeLockRef.current = null;
-                console.log('Wake lock released');
-              } catch (e) {
-                console.warn('Wake lock release failed:', e);
-              }
-            }
-          }, []);
-
-          return { requestWakeLock, releaseWakeLock };
+            return { playSound, ensureContext };
         };
 
         // --- Components ---
-        const TimerDisplay = ({ time, phase, rep, totalReps, initialDuration }) => {
-          const ringOpacity = initialDuration > 0 ? Math.max(0, Math.min(1, time / initialDuration)) : 0;
+        const CustomInputs = ({ initialBH, setInitialBH, initialRecovery, setInitialRecovery, isRunning, onUpdateTables }) => {
+            const [bhInput, setBhInput] = useState(Math.floor(initialBH / 60));
+            const [bhSeconds, setBhSeconds] = useState(initialBH % 60);
+            const [recoveryInput, setRecoveryInput] = useState(Math.floor(initialRecovery / 60));
+            const [recoverySeconds, setRecoverySeconds] = useState(initialRecovery % 60);
 
-          return (
-            <div
-              className="relative flex flex-col items-center justify-center bg-gray-900 rounded-full w-[min(80vw,18rem)] h-[min(80vw,18rem)] sm:w-72 sm:h-72 mx-auto my-6 border-8 border-gray-800 shadow-lg no-select"
-              aria-live="polite"
-              role="status"
-            >
-              <div
-                className="absolute inset-0 rounded-full border-4 border-orange-400 transition-all duration-700"
-                style={{
-                  opacity: ringOpacity,
-                  boxShadow: `0 0 28px 6px rgba(251,146,60, ${ringOpacity * 0.72})`,
-                }}
-              />
-              <div className="relative z-10 flex flex-col items-center justify-center">
-                <div className={`text-5xl sm:text-7xl font-mono ${phase === 'BH' ? 'text-cyan-400' : 'text-green-400'}`}>
-                  {formatTime(time)}
-                </div>
-                <div className="text-xl sm:text-2xl text-white mt-2">
-                  {phase === 'BH' ? 'Breath Hold' : 'Recovery'}
-                </div>
-                <div className="text-lg text-gray-400 mt-1">
-                  Rep: {rep} / {totalReps}
-                </div>
-              </div>
-            </div>
-          );
+            const handleUpdate = () => {
+                const newBH = bhInput * 60 + bhSeconds;
+                const newRecovery = recoveryInput * 60 + recoverySeconds;
+                
+                if (newBH > 0 && newRecovery > 0) {
+                    setInitialBH(newBH);
+                    setInitialRecovery(newRecovery);
+                    onUpdateTables(newBH, newRecovery);
+                }
+            };
+
+            return React.createElement('div', { className: "mb-6 p-4 bg-gray-800 rounded-lg border border-gray-700" },
+                React.createElement('h3', { className: "text-lg font-semibold text-white mb-4 text-center" }, "Custom Training Parameters"),
+                
+                React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-2 gap-4 mb-4" },
+                    React.createElement('div', null,
+                        React.createElement('label', { className: "block text-sm font-medium text-gray-300 mb-2" }, "Initial Breath Hold Time"),
+                        React.createElement('div', { className: "flex items-center space-x-2" },
+                            React.createElement('input', {
+                                type: "number",
+                                min: "0",
+                                max: "10",
+                                value: bhInput,
+                                onChange: (e) => setBhInput(parseInt(e.target.value) || 0),
+                                disabled: isRunning,
+                                className: "w-16 bg-gray-700 border border-gray-600 text-white text-center rounded p-2 disabled:opacity-50"
+                            }),
+                            React.createElement('span', { className: "text-gray-400" }, "min"),
+                            React.createElement('input', {
+                                type: "number",
+                                min: "0",
+                                max: "59",
+                                value: bhSeconds,
+                                onChange: (e) => setBhSeconds(parseInt(e.target.value) || 0),
+                                disabled: isRunning,
+                                className: "w-16 bg-gray-700 border border-gray-600 text-white text-center rounded p-2 disabled:opacity-50"
+                            }),
+                            React.createElement('span', { className: "text-gray-400" }, "sec")
+                        )
+                    ),
+                    
+                    React.createElement('div', null,
+                        React.createElement('label', { className: "block text-sm font-medium text-gray-300 mb-2" }, "Initial Recovery Time"),
+                        React.createElement('div', { className: "flex items-center space-x-2" },
+                            React.createElement('input', {
+                                type: "number",
+                                min: "0",
+                                max: "10",
+                                value: recoveryInput,
+                                onChange: (e) => setRecoveryInput(parseInt(e.target.value) || 0),
+                                disabled: isRunning,
+                                className: "w-16 bg-gray-700 border border-gray-600 text-white text-center rounded p-2 disabled:opacity-50"
+                            }),
+                            React.createElement('span', { className: "text-gray-400" }, "min"),
+                            React.createElement('input', {
+                                type: "number",
+                                min: "0",
+                                max: "59",
+                                value: recoverySeconds,
+                                onChange: (e) => setRecoverySeconds(parseInt(e.target.value) || 0),
+                                disabled: isRunning,
+                                className: "w-16 bg-gray-700 border border-gray-600 text-white text-center rounded p-2 disabled:opacity-50"
+                            }),
+                            React.createElement('span', { className: "text-gray-400" }, "sec")
+                        )
+                    )
+                ),
+                
+                React.createElement('button', {
+                    onClick: handleUpdate,
+                    disabled: isRunning,
+                    className: "w-full bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-600 disabled:opacity-50 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                }, "Update Training Tables")
+            );
+        };
+
+        const TimerDisplay = ({ time, phase, rep, totalReps, initialDuration }) => {
+            const ringOpacity = initialDuration > 0 ? Math.max(0, Math.min(1, time / initialDuration)) : 0;
+
+            return React.createElement('div', {
+                className: "relative flex flex-col items-center justify-center bg-gray-900 rounded-full w-[min(72vw,20rem)] h-[min(72vw,20rem)] md:w-80 md:h-80 mx-auto my-8 border-8 border-gray-800 shadow-lg",
+                'aria-live': "polite",
+                role: "status"
+            },
+                React.createElement('div', {
+                    className: "absolute inset-0 rounded-full border-4 border-orange-400 transition-all duration-700",
+                    style: {
+                        opacity: ringOpacity,
+                        boxShadow: `0 0 28px 6px rgba(251,146,60, ${ringOpacity * 0.72})`
+                    }
+                }),
+                React.createElement('div', { className: "relative z-10 flex flex-col items-center justify-center" },
+                    React.createElement('div', { className: `text-6xl md:text-8xl font-mono ${phase === 'BH' ? 'text-cyan-400' : 'text-green-400'}` },
+                        formatTime(time)
+                    ),
+                    React.createElement('div', { className: "text-2xl md:text-3xl text-white mt-2" },
+                        phase === 'BH' ? 'Breath Hold' : 'Recovery'
+                    ),
+                    React.createElement('div', { className: "text-lg md:text-xl text-gray-400 mt-1" },
+                        `Rep: ${rep} / ${totalReps}`
+                    )
+                )
+            );
         };
 
         const SessionProgress = ({ currentRep, currentPhase, timeRemaining, initialDuration, totalReps }) => {
-          const totalSteps = totalReps * 2;
-          let completedBefore = currentRep * 2;
-          let withinStepProgress = 0;
+            const totalSteps = totalReps * 2;
+            let completedBefore = currentRep * 2;
+            let withinStepProgress = 0;
 
-          if (initialDuration > 0) {
-            withinStepProgress = (initialDuration - timeRemaining) / initialDuration;
-          }
+            if (initialDuration > 0) {
+                withinStepProgress = (initialDuration - timeRemaining) / initialDuration;
+            }
 
-          let progressSteps = completedBefore;
-          if (currentPhase === 'BH') {
-            progressSteps += withinStepProgress;
-          } else {
-            progressSteps += 1 + withinStepProgress;
-          }
+            let progressSteps = completedBefore;
+            if (currentPhase === 'BH') {
+                progressSteps += withinStepProgress;
+            } else {
+                progressSteps += 1 + withinStepProgress;
+            }
 
-          let progress = Math.max(0, Math.min(1, progressSteps / totalSteps));
+            let progress = Math.max(0, Math.min(1, progressSteps / totalSteps));
 
-          return (
-            <div className="my-4 px-4">
-              <div className="flex items-center justify-between mb-2 text-sm text-gray-400">
-                <div>Session Progress</div>
-                <div>{Math.round(progress * 100)}%</div>
-              </div>
-              <div className="w-full h-4 bg-gray-800 rounded-full overflow-hidden border border-gray-700 shadow-inner">
-                <div
-                  className="h-full rounded-full transition-all duration-500 ease-linear"
-                  style={{ width: `${progress * 100}%`, background: 'linear-gradient(90deg,#06b6d4,#10b981)' }}
-                />
-              </div>
-            </div>
-          );
+            return React.createElement('div', { className: "my-4 px-2" },
+                React.createElement('div', { className: "flex items-center justify-between mb-2 text-sm text-gray-400" },
+                    React.createElement('div', null, "Session Progress"),
+                    React.createElement('div', null, `${Math.round(progress * 100)}%`)
+                ),
+                React.createElement('div', { className: "w-full h-4 bg-gray-800 rounded-full overflow-hidden border border-gray-700 shadow-inner" },
+                    React.createElement('div', {
+                        className: "h-full rounded-full transition-all duration-500 ease-linear",
+                        style: { 
+                            width: `${progress * 100}%`, 
+                            background: 'linear-gradient(90deg,#06b6d4,#10b981)' 
+                        }
+                    })
+                )
+            );
         };
 
-        const TableSelector = ({ selectedTable, setSelectedTable, isRunning }) => (
-          <div className="my-6 px-4">
-            <label htmlFor="table-select" className="block text-lg font-medium text-gray-300 mb-2 text-center">
-              Select CO2 Table
-            </label>
-            <select
-              id="table-select"
-              value={selectedTable}
-              onChange={(e) => setSelectedTable(e.target.value)}
-              disabled={isRunning}
-              className="block w-full max-w-xs mx-auto bg-gray-800 border border-gray-700 text-white text-lg rounded-lg focus:ring-cyan-500 focus:border-cyan-500 p-3 disabled:opacity-50"
-            >
-              {Object.keys(co2Tables).map((tableName) => (
-                <option key={tableName} value={tableName}>
-                  {tableName}
-                </option>
-              ))}
-            </select>
-          </div>
+        const TableSelector = ({ selectedTable, setSelectedTable, isRunning, co2Tables }) => (
+            React.createElement('div', { className: "my-6" },
+                React.createElement('label', { 
+                    htmlFor: "table-select", 
+                    className: "block text-lg font-medium text-gray-300 mb-2 text-center" 
+                }, "Select CO2 Table"),
+                React.createElement('select', {
+                    id: "table-select",
+                    value: selectedTable,
+                    onChange: (e) => setSelectedTable(e.target.value),
+                    disabled: isRunning,
+                    className: "block w-full max-w-xs mx-auto bg-gray-800 border border-gray-700 text-white text-lg rounded-lg focus:ring-cyan-500 focus:border-cyan-500 p-3 disabled:opacity-50"
+                },
+                    Object.keys(co2Tables).map((tableName) => 
+                        React.createElement('option', { key: tableName, value: tableName }, tableName)
+                    )
+                )
+            )
         );
 
-        const Controls = ({ isRunning, onStart, onStop, onReset, resetDisabled, audioEnabled }) => (
-          <div className="px-4">
-            <div className="flex justify-center items-center space-x-4 mb-4">
-              {!isRunning ? (
-                <button
-                  onClick={onStart}
-                  className="bg-green-500 hover:bg-green-600 active:bg-green-700 text-white font-bold py-4 px-8 rounded-full text-xl shadow-lg transform hover:scale-105 active:scale-95 transition-transform no-select"
-                >
-                  Start
-                </button>
-              ) : (
-                <button
-                  onClick={onStop}
-                  className="bg-red-500 hover:bg-red-600 active:bg-red-700 text-white font-bold py-4 px-8 rounded-full text-xl shadow-lg transform hover:scale-105 active:scale-95 transition-transform no-select"
-                >
-                  Stop
-                </button>
-              )}
-              <button
-                onClick={onReset}
-                disabled={resetDisabled}
-                className={
-                  `font-bold py-4 px-8 rounded-full text-xl shadow-lg transform transition-transform no-select ` +
-                  (resetDisabled
-                    ? 'bg-gray-600 text-white opacity-50 cursor-not-allowed'
-                    : 'bg-gray-500 hover:bg-gray-600 active:bg-gray-700 hover:scale-105 active:scale-95 text-white')
-                }
-              >
-                Reset
-              </button>
-            </div>
-            {!audioEnabled && (
-              <div className="text-center text-yellow-400 text-sm">
-                Tap Start to enable audio cues
-              </div>
-            )}
-          </div>
+        const Controls = ({ isRunning, onStart, onStop, onReset, resetDisabled }) => (
+            React.createElement('div', { className: "flex justify-center items-center space-x-4" },
+                !isRunning ? 
+                    React.createElement('button', {
+                        onClick: onStart,
+                        className: "bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-8 rounded-full text-2xl shadow-lg transform hover:scale-105 transition-transform"
+                    }, "Start") :
+                    React.createElement('button', {
+                        onClick: onStop,
+                        className: "bg-red-500 hover:bg-red-600 text-white font-bold py-4 px-8 rounded-full text-2xl shadow-lg transform hover:scale-105 transition-transform"
+                    }, "Stop"),
+                React.createElement('button', {
+                    onClick: onReset,
+                    disabled: resetDisabled,
+                    className: `font-bold py-4 px-8 rounded-full text-2xl shadow-lg transform hover:scale-105 transition-transform ` +
+                        (resetDisabled
+                            ? 'bg-gray-600 text-white opacity-50 cursor-not-allowed hover:scale-100'
+                            : 'bg-gray-500 hover:bg-gray-600 text-white')
+                }, "Reset")
+            )
         );
 
         // --- Main App Component ---
-        function App() {
-          const [selectedTable, setSelectedTable] = useState('Week 1');
-          const [isRunning, setIsRunning] = useState(false);
-          const [currentRep, setCurrentRep] = useState(0);
-          const [currentPhase, setCurrentPhase] = useState('BH');
-          const tableData = co2Tables[selectedTable];
-          const totalReps = tableData.length;
+        const App = () => {
+            const [initialBH, setInitialBH] = useState(90);
+            const [initialRecovery, setInitialRecovery] = useState(120);
+            const [co2Tables, setCo2Tables] = useState(() => generateCO2Tables(90, 120));
 
-          const initialFirst = tableData[0].bh;
-          const [timeRemaining, setTimeRemaining] = useState(initialFirst);
-          const [initialDuration, setInitialDuration] = useState(initialFirst);
-          const [sessionFinished, setSessionFinished] = useState(false);
+            const defaultTable = 'Week 1';
+            const [selectedTable, setSelectedTable] = useState(defaultTable);
+            const [isRunning, setIsRunning] = useState(false);
+            const [currentRep, setCurrentRep] = useState(0);
+            const [currentPhase, setCurrentPhase] = useState('BH');
+            const tableData = co2Tables[selectedTable];
+            const totalReps = tableData.length;
 
-          const repRef = useRef(currentRep);
-          const phaseRef = useRef(currentPhase);
-          const timeRef = useRef(timeRemaining);
-          const runningRef = useRef(isRunning);
-          const intervalRef = useRef(null);
+            const initialFirst = tableData[0].bh;
+            const [timeRemaining, setTimeRemaining] = useState(initialFirst);
+            const [initialDuration, setInitialDuration] = useState(initialFirst);
+            const [sessionFinished, setSessionFinished] = useState(false);
 
-          const { playSound, ensureContext, audioEnabled } = useAudio();
-          const { requestWakeLock, releaseWakeLock } = useWakeLock();
+            const repRef = useRef(currentRep);
+            const phaseRef = useRef(currentPhase);
+            const timeRef = useRef(timeRemaining);
+            const runningRef = useRef(isRunning);
+            const intervalRef = useRef(null);
 
-          useEffect(() => { repRef.current = currentRep; }, [currentRep]);
-          useEffect(() => { phaseRef.current = currentPhase; }, [currentPhase]);
-          useEffect(() => { timeRef.current = timeRemaining; }, [timeRemaining]);
-          useEffect(() => { runningRef.current = isRunning; }, [isRunning]);
+            const { playSound, ensureContext } = useAudio();
 
-          useEffect(() => {
-            const initial = co2Tables[selectedTable][0].bh;
-            setIsRunning(false);
-            setCurrentRep(0);
-            setCurrentPhase('BH');
-            setTimeRemaining(initial);
-            setInitialDuration(initial);
-            setSessionFinished(false);
+            useEffect(() => { repRef.current = currentRep; }, [currentRep]);
+            useEffect(() => { phaseRef.current = currentPhase; }, [currentPhase]);
+            useEffect(() => { timeRef.current = timeRemaining; }, [timeRemaining]);
+            useEffect(() => { runningRef.current = isRunning; }, [isRunning]);
 
-            repRef.current = 0;
-            phaseRef.current = 'BH';
-            timeRef.current = initial;
-          }, [selectedTable]);
+            const handleUpdateTables = useCallback((newBH, newRecovery) => {
+                const newTables = generateCO2Tables(newBH, newRecovery);
+                setCo2Tables(newTables);
+                
+                setSelectedTable('Week 1');
+                const initial = newTables['Week 1'][0].bh;
+                setIsRunning(false);
+                setCurrentRep(0);
+                setCurrentPhase('BH');
+                setTimeRemaining(initial);
+                setInitialDuration(initial);
+                setSessionFinished(false);
 
-          useEffect(() => {
-            return () => {
-              if (intervalRef.current) {
-                clearInterval(intervalRef.current);
-                intervalRef.current = null;
-              }
-              releaseWakeLock();
-            };
-          }, [releaseWakeLock]);
+                repRef.current = 0;
+                phaseRef.current = 'BH';
+                timeRef.current = initial;
+            }, []);
 
-          const tick = useCallback(() => {
-            if (!runningRef.current) return;
+            useEffect(() => {
+                if (co2Tables[selectedTable]) {
+                    const initial = co2Tables[selectedTable][0].bh;
+                    setIsRunning(false);
+                    setCurrentRep(0);
+                    setCurrentPhase('BH');
+                    setTimeRemaining(initial);
+                    setInitialDuration(initial);
+                    setSessionFinished(false);
 
-            const next = Math.max(0, timeRef.current - 1);
-            setTimeRemaining(next);
-            timeRef.current = next;
+                    repRef.current = 0;
+                    phaseRef.current = 'BH';
+                    timeRef.current = initial;
+                }
+            }, [selectedTable, co2Tables]);
 
-            if (next === 0) {
-              const phase = phaseRef.current;
-              const rep = repRef.current;
+            useEffect(() => {
+                return () => {
+                    if (intervalRef.current) {
+                        clearInterval(intervalRef.current);
+                        intervalRef.current = null;
+                    }
+                };
+            }, []);
 
-              if (phase === 'BH') {
-                playSound('end');
-                const nextDuration = tableData[rep].rb;
-                setCurrentPhase('RB');
-                phaseRef.current = 'RB';
-                setInitialDuration(nextDuration);
-                setTimeRemaining(nextDuration);
-                timeRef.current = nextDuration;
-              } else {
-                if (rep < totalReps - 1) {
-                  playSound('rep');
-                  const newRep = rep + 1;
-                  repRef.current = newRep;
-                  setCurrentRep(newRep);
+            const tick = useCallback(() => {
+                if (!runningRef.current) return;
 
-                  const nextDuration = tableData[newRep].bh;
-                  setCurrentPhase('BH');
-                  phaseRef.current = 'BH';
-                  setInitialDuration(nextDuration);
-                  setTimeRemaining(nextDuration);
-                  timeRef.current = nextDuration;
-                } else {
-                  playSound('end');
-                  setSessionFinished(true);
-                  setIsRunning(false);
-                  runningRef.current = false;
-                  releaseWakeLock();
+                const next = Math.max(0, timeRef.current - 1);
+                setTimeRemaining(next);
+                timeRef.current = next;
 
-                  const initial = tableData[0].bh;
-                  setCurrentRep(0);
-                  repRef.current = 0;
-                  setCurrentPhase('BH');
-                  phaseRef.current = 'BH';
-                  setInitialDuration(initial);
-                  setTimeRemaining(initial);
-                  timeRef.current = initial;
+                if (next === 0) {
+                    const phase = phaseRef.current;
+                    const rep = repRef.current;
 
-                  if (intervalRef.current) {
+                    if (phase === 'BH') {
+                        playSound('end');
+                        const nextDuration = tableData[rep].rb;
+                        setCurrentPhase('RB');
+                        phaseRef.current = 'RB';
+                        setInitialDuration(nextDuration);
+                        setTimeRemaining(nextDuration);
+                        timeRef.current = nextDuration;
+                    } else {
+                        if (rep < totalReps - 1) {
+                            playSound('rep');
+                            const newRep = rep + 1;
+                            repRef.current = newRep;
+                            setCurrentRep(newRep);
+
+                            const nextDuration = tableData[newRep].bh;
+                            setCurrentPhase('BH');
+                            phaseRef.current = 'BH';
+                            setInitialDuration(nextDuration);
+                            setTimeRemaining(nextDuration);
+                            timeRef.current = nextDuration;
+                        } else {
+                            playSound('end');
+                            setSessionFinished(true);
+                            setIsRunning(false);
+                            runningRef.current = false;
+
+                            const initial = tableData[0].bh;
+                            setCurrentRep(0);
+                            repRef.current = 0;
+                            setCurrentPhase('BH');
+                            phaseRef.current = 'BH';
+                            setInitialDuration(initial);
+                            setTimeRemaining(initial);
+                            timeRef.current = initial;
+
+                            if (intervalRef.current) {
+                                clearInterval(intervalRef.current);
+                                intervalRef.current = null;
+                            }
+                        }
+                    }
+                }
+            }, [playSound, tableData, totalReps]);
+
+            useEffect(() => {
+                if (isRunning && !intervalRef.current) {
+                    ensureContext().catch(() => { /* ignore */ });
+                    intervalRef.current = setInterval(() => {
+                        tick();
+                    }, 1000);
+                }
+
+                if (!isRunning && intervalRef.current) {
                     clearInterval(intervalRef.current);
                     intervalRef.current = null;
-                  }
                 }
-              }
-            }
-          }, [playSound, tableData, totalReps, releaseWakeLock]);
 
-          useEffect(() => {
-            if (isRunning && !intervalRef.current) {
-              ensureContext().catch(() => {});
-              requestWakeLock();
-              intervalRef.current = setInterval(() => {
-                tick();
-              }, 1000);
-            }
+                return () => {
+                    if (intervalRef.current && !runningRef.current) {
+                        clearInterval(intervalRef.current);
+                        intervalRef.current = null;
+                    }
+                };
+            }, [isRunning, tick, ensureContext]);
 
-            if (!isRunning && intervalRef.current) {
-              clearInterval(intervalRef.current);
-              intervalRef.current = null;
-              releaseWakeLock();
-            }
-
-            return () => {
-              if (intervalRef.current && !runningRef.current) {
-                clearInterval(intervalRef.current);
-                intervalRef.current = null;
-              }
-            };
-          }, [isRunning, tick, ensureContext, requestWakeLock, releaseWakeLock]);
-
-          const handleStart = async () => {
-            await ensureContext().catch(() => {});
-            playSound('start');
-            setIsRunning(true);
-            runningRef.current = true;
-            setSessionFinished(false);
-          };
-
-          const handleStop = () => {
-            setIsRunning(false);
-            runningRef.current = false;
-            if (intervalRef.current) {
-              clearInterval(intervalRef.current);
-              intervalRef.current = null;
-            }
-            releaseWakeLock();
-          };
-
-          const resetTimer = useCallback(() => {
-            setIsRunning(false);
-            runningRef.current = false;
-
-            setCurrentRep(0);
-            repRef.current = 0;
-
-            setCurrentPhase('BH');
-            phaseRef.current = 'BH';
-
-            const initial = co2Tables[selectedTable][0].bh;
-            setInitialDuration(initial);
-            setTimeRemaining(initial);
-            timeRef.current = initial;
-
-            if (intervalRef.current) {
-              clearInterval(intervalRef.current);
-              intervalRef.current = null;
-            }
-
-            setSessionFinished(false);
-            releaseWakeLock();
-          }, [selectedTable, releaseWakeLock]);
-
-          const handleReset = () => {
-            if (sessionFinished) return;
-            resetTimer();
-            playSound('end');
-          };
-
-          // Keyboard shortcuts
-          useEffect(() => {
-            const handleKeyPress = (e) => {
-              if (e.code === 'Space') {
-                e.preventDefault();
-                if (isRunning) {
-                  handleStop();
-                } else {
-                  handleStart();
-                }
-              } else if (e.code === 'KeyR' && !sessionFinished) {
-                e.preventDefault();
-                handleReset();
-              }
+            const handleStart = async () => {
+                await ensureContext().catch(() => { /* ignore */ });
+                playSound('start');
+                setIsRunning(true);
+                runningRef.current = true;
+                setSessionFinished(false);
             };
 
-            window.addEventListener('keydown', handleKeyPress);
-            return () => window.removeEventListener('keydown', handleKeyPress);
-          }, [isRunning, sessionFinished]);
+            const handleStop = () => {
+                setIsRunning(false);
+                runningRef.current = false;
+                if (intervalRef.current) {
+                    clearInterval(intervalRef.current);
+                    intervalRef.current = null;
+                }
+            };
 
-          return (
-            <div className="bg-black min-h-screen flex flex-col items-center justify-center text-white font-sans">
-              <div className="w-full max-w-md mx-auto bg-gray-900/50 rounded-2xl shadow-2xl border border-gray-700 min-h-screen sm:min-h-0 sm:my-4">
-                <header className="text-center pt-8 pb-4 px-4">
-                  <h1 className="text-3xl sm:text-4xl font-bold text-cyan-400">CO₂ Training</h1>
-                  <p className="text-gray-400">Static Apnea Trainer</p>
-                </header>
+            const resetTimer = useCallback(() => {
+                setIsRunning(false);
+                runningRef.current = false;
 
-                <main className="pb-8">
-                  <TimerDisplay
-                    time={timeRemaining}
-                    phase={currentPhase}
-                    rep={currentRep + 1}
-                    totalReps={totalReps}
-                    initialDuration={initialDuration}
-                  />
+                setCurrentRep(0);
+                repRef.current = 0;
 
-                  <SessionProgress
-                    currentRep={currentRep}
-                    currentPhase={currentPhase}
-                    timeRemaining={timeRemaining}
-                    initialDuration={initialDuration}
-                    totalReps={totalReps}
-                  />
+                setCurrentPhase('BH');
+                phaseRef.current = 'BH';
 
-                  <TableSelector
-                    selectedTable={selectedTable}
-                    setSelectedTable={(val) => {
-                      if (isRunning) return;
-                      setSelectedTable(val);
-                    }}
-                    isRunning={isRunning}
-                  />
-                  
-                  <Controls 
-                    onStart={handleStart} 
-                    onStop={handleStop} 
-                    onReset={handleReset} 
-                    isRunning={isRunning} 
-                    resetDisabled={sessionFinished}
-                    audioEnabled={audioEnabled}
-                  />
-                </main>
+                const initial = co2Tables[selectedTable][0].bh;
+                setInitialDuration(initial);
+                setTimeRemaining(initial);
+                timeRef.current = initial;
 
-                <footer className="text-center pb-8 px-4 text-gray-500 text-sm">
-                  <p>Hold your breath during the 'Breath Hold' phase.</p>
-                  <p>Breathe normally during the 'Recovery' phase.</p>
-                  <p className="mt-2 text-xs">Space: Start/Stop • R: Reset</p>
-                </footer>
-              </div>
-            </div>
-          );
-        }
+                if (intervalRef.current) {
+                    clearInterval(intervalRef.current);
+                    intervalRef.current = null;
+                }
 
-        ReactDOM.render(<App />, document.getElementById('root'));
+                setSessionFinished(false);
+            }, [selectedTable, co2Tables]);
+
+            const handleReset = () => {
+                if (sessionFinished) return;
+                resetTimer();
+                playSound('end');
+            };
+
+            return React.createElement('div', { 
+                className: "bg-black min-h-screen flex flex-col items-center justify-center text-white p-4 font-sans" 
+            },
+                React.createElement('div', { 
+                    className: "w-full max-w-md mx-auto bg-gray-900/50 rounded-2xl shadow-2xl p-6 border border-gray-700" 
+                },
+                    React.createElement('header', { className: "text-center mb-4" },
+                        React.createElement('h1', { className: "text-4xl font-bold text-cyan-400" }, "CO₂ Training"),
+                        React.createElement('p', { className: "text-gray-400" }, "Custom Static Apnea Trainer")
+                    ),
+
+                    React.createElement('main', null,
+                        React.createElement(CustomInputs, {
+                            initialBH: initialBH,
+                            setInitialBH: setInitialBH,
+                            initialRecovery: initialRecovery,
+                            setInitialRecovery: setInitialRecovery,
+                            isRunning: isRunning,
+                            onUpdateTables: handleUpdateTables
+                        }),
+
+                        React.createElement(TimerDisplay, {
+                            time: timeRemaining,
+                            phase: currentPhase,
+                            rep: currentRep + 1,
+                            totalReps: totalReps,
+                            initialDuration: initialDuration
+                        }),
+
+                        React.createElement(SessionProgress, {
+                            currentRep: currentRep,
+                            currentPhase: currentPhase,
+                            timeRemaining: timeRemaining,
+                            initialDuration: initialDuration,
+                            totalReps: totalReps
+                        }),
+
+                        React.createElement(TableSelector, {
+                            selectedTable: selectedTable,
+                            setSelectedTable: (val) => {
+                                if (isRunning) return;
+                                setSelectedTable(val);
+                            },
+                            isRunning: isRunning,
+                            co2Tables: co2Tables
+                        }),
+
+                        React.createElement(Controls, {
+                            onStart: handleStart,
+                            onStop: handleStop,
+                            onReset: handleReset,
+                            isRunning: isRunning,
+                            resetDisabled: sessionFinished
+                        })
+                    ),
+
+                    React.createElement('footer', { className: "text-center mt-8 text-gray-500 text-sm" },
+                        React.createElement('p', null, "Hold your breath during the 'Breath Hold' phase."),
+                        React.createElement('p', null, "Breathe normally during the 'Recovery' phase."),
+                        React.createElement('p', { className: "mt-2" }, "Tables auto-generate based on your custom inputs.")
+                    )
+                )
+            );
+        };
+
+        // Render the app
+        ReactDOM.render(React.createElement(App), document.getElementById('root'));
     </script>
 </body>
 </html>
