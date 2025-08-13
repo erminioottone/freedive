@@ -26,6 +26,20 @@
             return `${mins}:${secs}`;
         };
 
+        // Helper function to round time values intelligently
+        const roundTime = (seconds) => {
+            if (seconds <= 60) {
+                // For times <= 1 minute, round to nearest 5 seconds
+                return Math.round(seconds / 5) * 5;
+            } else if (seconds <= 300) {
+                // For times <= 5 minutes, round to nearest 15 seconds
+                return Math.round(seconds / 15) * 15;
+            } else {
+                // For times > 5 minutes, round to nearest 30 seconds
+                return Math.round(seconds / 30) * 30;
+            }
+        };
+
         // Generate CO2 tables based on user input
         const generateCO2Tables = (initialBH, initialRecovery, weeks = 6) => {
             const tables = {};
@@ -36,16 +50,19 @@
                 
                 // Calculate BH progression (increases each week)
                 const bhIncrement = Math.floor(initialBH * 0.3); // 30% increase per week
-                const weeklyBH = initialBH + (bhIncrement * (week - 1));
+                const rawWeeklyBH = initialBH + (bhIncrement * (week - 1));
+                const weeklyBH = roundTime(rawWeeklyBH);
                 
                 // Calculate recovery progression (decreases each week)
                 const recoveryDecrement = Math.floor(initialRecovery * 0.15); // 15% decrease per week
-                const baseRecovery = Math.max(30, initialRecovery - (recoveryDecrement * (week - 1)));
+                const rawBaseRecovery = Math.max(30, initialRecovery - (recoveryDecrement * (week - 1)));
+                const baseRecovery = roundTime(rawBaseRecovery);
                 
                 // Generate 8 reps per week with decreasing recovery times
                 for (let rep = 0; rep < 8; rep++) {
                     const recoveryReduction = Math.floor(baseRecovery * 0.05 * rep); // 5% reduction per rep
-                    const finalRecovery = Math.max(15, baseRecovery - recoveryReduction);
+                    const rawFinalRecovery = Math.max(15, baseRecovery - recoveryReduction);
+                    const finalRecovery = roundTime(rawFinalRecovery);
                     
                     weeklyTable.push({
                         bh: weeklyBH,
