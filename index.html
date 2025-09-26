@@ -219,11 +219,9 @@
             // Calculate progress (0 to 1, where 1 is full and 0 is empty)
             const progress = initialDuration > 0 ? Math.max(0, Math.min(1, time / initialDuration)) : 0;
             
-            // SVG circle parameters - perfectly matching the container border
+            // SVG circle parameters
+            const radius = 148; // Slightly smaller than the container to account for stroke width
             const strokeWidth = 8;
-            // Container has 8px border, so inner diameter is: 320px - 16px = 304px for md, proportional for smaller sizes
-            // Radius should be half of inner diameter minus half stroke width to center the stroke on the border
-            const radius = 148; // (304/2) - (8/2) = 152 - 4 = 148 for perfect border alignment
             const circumference = 2 * Math.PI * radius;
             
             // Calculate stroke-dasharray and stroke-dashoffset for counter-clockwise emptying
@@ -237,13 +235,12 @@
             },
                 // SVG Progress Circle
                 React.createElement('svg', {
-                    className: "absolute inset-2 w-[calc(100%-16px)] h-[calc(100%-16px)]", // Account for 8px border on each side
-                    style: { transform: 'rotate(-90deg)' }, // Start from 12 o'clock
-                    viewBox: "0 0 312 312" // ViewBox matches the inner container size (320-8 = 312)
+                    className: "absolute inset-0 w-full h-full",
+                    style: { transform: 'rotate(-90deg)' } // Start from 12 o'clock
                 },
                     React.createElement('circle', {
-                        cx: "156", // Center of 312px viewBox
-                        cy: "156", // Center of 312px viewBox
+                        cx: "50%",
+                        cy: "50%",
                         r: radius,
                         fill: "transparent",
                         stroke: "#fb923c", // orange-400
