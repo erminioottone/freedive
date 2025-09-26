@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CO₂ Training - Custom Static Apnea Trainer</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
@@ -26,16 +26,21 @@
             return `${mins}:${secs}`;
         };
 
+        // Helper function to round time values intelligently
         const roundTime = (seconds) => {
             if (seconds <= 60) {
+                // For times <= 1 minute, round to nearest 5 seconds
                 return Math.round(seconds / 5) * 5;
             } else if (seconds <= 300) {
+                // For times <= 5 minutes, round to nearest 15 seconds
                 return Math.round(seconds / 15) * 15;
             } else {
+                // For times > 5 minutes, round to nearest 30 seconds
                 return Math.round(seconds / 30) * 30;
             }
         };
 
+        // Generate CO2 tables based on user input
         const generateCO2Tables = (initialBH, initialRecovery, weeks = 6) => {
             const tables = {};
             
@@ -43,20 +48,26 @@
                 const weekName = `Week ${week}`;
                 const weeklyTable = [];
                 
-                const bhIncrement = Math.floor(initialBH * 0.3);
+                // Calculate BH progression (increases each week)
+                const bhIncrement = Math.floor(initialBH * 0.3); // 30% increase per week
                 const rawWeeklyBH = initialBH + (bhIncrement * (week - 1));
                 const weeklyBH = roundTime(rawWeeklyBH);
                 
-                const recoveryDecrement = Math.floor(initialRecovery * 0.15);
+                // Calculate recovery progression (decreases each week)
+                const recoveryDecrement = Math.floor(initialRecovery * 0.15); // 15% decrease per week
                 const rawBaseRecovery = Math.max(30, initialRecovery - (recoveryDecrement * (week - 1)));
                 const baseRecovery = roundTime(rawBaseRecovery);
                 
-                for(let rep = 0; rep < 8; rep++) {
-                    const recoveryReduction = Math.floor(baseRecovery * 0.05 * rep);
+                // Generate 8 reps per week with decreasing recovery times
+                for (let rep = 0; rep < 8; rep++) {
+                    const recoveryReduction = Math.floor(baseRecovery * 0.05 * rep); // 5% reduction per rep
                     const rawFinalRecovery = Math.max(15, baseRecovery - recoveryReduction);
                     const finalRecovery = roundTime(rawFinalRecovery);
                     
-                    weeklyTable.push({ bh: weeklyBH, rb: finalRecovery });
+                    weeklyTable.push({
+                        bh: weeklyBH,
+                        rb: finalRecovery
+                    });
                 }
                 
                 tables[weekName] = weeklyTable;
@@ -77,7 +88,7 @@
                 }
                 const ctx = audioContextRef.current;
                 if (ctx.state === 'suspended') {
-                    try { await ctx.resume(); } catch (e) { }
+                    try { await ctx.resume(); } catch (e) { /* ignore */ }
                 }
                 return audioContextRef.current;
             }, []);
@@ -121,43 +132,6 @@
             return { playSound, ensureContext };
         };
 
-        // --- Circular Progress Bar Component ---
-        const CircularProgressBar = ({ progress, color, size }) => {
-            // progress: 1 means full circle, 0 means no stroke
-            // SVG circle configuration
-            const strokeWidth = 8;
-            const radius = (size - strokeWidth) / 2;
-            const circumference = 2 * Math.PI * radius;
-
-            // Animate strokeDashoffset to empty circle anti-clockwise starting 12 o'clock
-            // strokeDashoffset = circumference * progress (progress from 1 to 0)
-            const dashOffset = circumference * (1 - progress);
-
-            return (
-                <svg
-                    width={size}
-                    height={size}
-                    className="absolute inset-0"
-                    aria-hidden="true"
-                >
-                    <circle
-                        stroke={color}
-                        fill="transparent"
-                        strokeWidth={strokeWidth}
-                        strokeLinecap="round"
-                        r={radius}
-                        cx={size / 2}
-                        cy={size / 2}
-                        style={{
-                            strokeDasharray: circumference,
-                            strokeDashoffset: dashOffset,
-                            transition: 'stroke-dashoffset 1s linear'
-                        }}
-                    />
-                </svg>
-            );
-        };
-
         // --- Components ---
         const CustomInputs = ({ initialBH, setInitialBH, initialRecovery, setInitialRecovery, isRunning, onUpdateTables }) => {
             const [bhInput, setBhInput] = useState(Math.floor(initialBH / 60));
@@ -176,106 +150,97 @@
                 }
             };
 
-            return (
-                <div className="mb-6 p-4 bg-gray-800 rounded-lg border border-gray-700">
-                    <h3 className="text-lg font-semibold text-white mb-4 text-center">Custom Training Parameters</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-2">Initial Breath Hold Time</label>
-                            <div className="flex items-center space-x-2">
-                                <input
-                                    type="number"
-                                    min="0"
-                                    max="10"
-                                    value={bhInput}
-                                    onChange={(e) => setBhInput(parseInt(e.target.value) || 0)}
-                                    disabled={isRunning}
-                                    className="w-16 bg-gray-700 border border-gray-600 text-white text-center rounded p-2 disabled:opacity-50"
-                                />
-                                <span className="text-gray-400">min</span>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    max="59"
-                                    value={bhSeconds}
-                                    onChange={(e) => setBhSeconds(parseInt(e.target.value) || 0)}
-                                    disabled={isRunning}
-                                    className="w-16 bg-gray-700 border border-gray-600 text-white text-center rounded p-2 disabled:opacity-50"
-                                />
-                                <span className="text-gray-400">sec</span>
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-2">Initial Recovery Time</label>
-                            <div className="flex items-center space-x-2">
-                                <input
-                                    type="number"
-                                    min="0"
-                                    max="10"
-                                    value={recoveryInput}
-                                    onChange={(e) => setRecoveryInput(parseInt(e.target.value) || 0)}
-                                    disabled={isRunning}
-                                    className="w-16 bg-gray-700 border border-gray-600 text-white text-center rounded p-2 disabled:opacity-50"
-                                />
-                                <span className="text-gray-400">min</span>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    max="59"
-                                    value={recoverySeconds}
-                                    onChange={(e) => setRecoverySeconds(parseInt(e.target.value) || 0)}
-                                    disabled={isRunning}
-                                    className="w-16 bg-gray-700 border border-gray-600 text-white text-center rounded p-2 disabled:opacity-50"
-                                />
-                                <span className="text-gray-400">sec</span>
-                            </div>
-                        </div>
-                    </div>
-                    <button
-                        onClick={handleUpdate}
-                        disabled={isRunning}
-                        className="w-full bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-600 disabled:opacity-50 text-white font-medium py-2 px-4 rounded-lg transition-colors"
-                    >
-                        Update Training Tables
-                    </button>
-                </div>
+            return React.createElement('div', { className: "mb-6 p-4 bg-gray-800 rounded-lg border border-gray-700" },
+                React.createElement('h3', { className: "text-lg font-semibold text-white mb-4 text-center" }, "Custom Training Parameters"),
+                
+                React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-2 gap-4 mb-4" },
+                    React.createElement('div', null,
+                        React.createElement('label', { className: "block text-sm font-medium text-gray-300 mb-2" }, "Initial Breath Hold Time"),
+                        React.createElement('div', { className: "flex items-center space-x-2" },
+                            React.createElement('input', {
+                                type: "number",
+                                min: "0",
+                                max: "10",
+                                value: bhInput,
+                                onChange: (e) => setBhInput(parseInt(e.target.value) || 0),
+                                disabled: isRunning,
+                                className: "w-16 bg-gray-700 border border-gray-600 text-white text-center rounded p-2 disabled:opacity-50"
+                            }),
+                            React.createElement('span', { className: "text-gray-400" }, "min"),
+                            React.createElement('input', {
+                                type: "number",
+                                min: "0",
+                                max: "59",
+                                value: bhSeconds,
+                                onChange: (e) => setBhSeconds(parseInt(e.target.value) || 0),
+                                disabled: isRunning,
+                                className: "w-16 bg-gray-700 border border-gray-600 text-white text-center rounded p-2 disabled:opacity-50"
+                            }),
+                            React.createElement('span', { className: "text-gray-400" }, "sec")
+                        )
+                    ),
+                    
+                    React.createElement('div', null,
+                        React.createElement('label', { className: "block text-sm font-medium text-gray-300 mb-2" }, "Initial Recovery Time"),
+                        React.createElement('div', { className: "flex items-center space-x-2" },
+                            React.createElement('input', {
+                                type: "number",
+                                min: "0",
+                                max: "10",
+                                value: recoveryInput,
+                                onChange: (e) => setRecoveryInput(parseInt(e.target.value) || 0),
+                                disabled: isRunning,
+                                className: "w-16 bg-gray-700 border border-gray-600 text-white text-center rounded p-2 disabled:opacity-50"
+                            }),
+                            React.createElement('span', { className: "text-gray-400" }, "min"),
+                            React.createElement('input', {
+                                type: "number",
+                                min: "0",
+                                max: "59",
+                                value: recoverySeconds,
+                                onChange: (e) => setRecoverySeconds(parseInt(e.target.value) || 0),
+                                disabled: isRunning,
+                                className: "w-16 bg-gray-700 border border-gray-600 text-white text-center rounded p-2 disabled:opacity-50"
+                            }),
+                            React.createElement('span', { className: "text-gray-400" }, "sec")
+                        )
+                    )
+                ),
+                
+                React.createElement('button', {
+                    onClick: handleUpdate,
+                    disabled: isRunning,
+                    className: "w-full bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-600 disabled:opacity-50 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                }, "Update Training Tables")
             );
         };
 
         const TimerDisplay = ({ time, phase, rep, totalReps, initialDuration }) => {
-            // Calculate progress 1 to 0 as timer goes from full to 0
-            const progress = initialDuration > 0 ? time / initialDuration : 0;
+            const ringOpacity = initialDuration > 0 ? Math.max(0, Math.min(1, time / initialDuration)) : 0;
 
-            // Color: keep same as existing fading ring border orange #fb923c (rgb 251,146,60)
-            const color = 'rgba(251, 146, 60, 1)';
-
-            // Size as existing fading ring container: max(72vw, 20rem) with border 8
-            const size = 320; // Approx 20rem in px
-
-            // Hide progress bar when time is zero
-            const showProgress = time > 0;
-
-            return (
-                <div
-                    className="relative flex flex-col items-center justify-center bg-gray-900 rounded-full w-[min(72vw,20rem)] h-[min(72vw,20rem)] md:w-80 md:h-80 mx-auto my-8 border-8 border-gray-800 shadow-lg"
-                    aria-live="polite"
-                    role="status"
-                >
-                    {showProgress && (
-                        <CircularProgressBar progress={progress} color={color} size={size} />
-                    )}
-                    <div className="relative z-10 flex flex-col items-center justify-center">
-                        <div className={`text-6xl md:text-8xl font-mono ${phase === 'BH' ? 'text-cyan-400' : 'text-green-400'}`}>
-                            {formatTime(time)}
-                        </div>
-                        <div className="text-2xl md:text-3xl text-white mt-2">
-                            {phase === 'BH' ? 'Breath Hold' : 'Recovery'}
-                        </div>
-                        <div className="text-lg md:text-xl text-gray-400 mt-1">
-                            {`Rep: ${rep} / ${totalReps}`}
-                        </div>
-                    </div>
-                </div>
+            return React.createElement('div', {
+                className: "relative flex flex-col items-center justify-center bg-gray-900 rounded-full w-[min(72vw,20rem)] h-[min(72vw,20rem)] md:w-80 md:h-80 mx-auto my-8 border-8 border-gray-800 shadow-lg",
+                'aria-live': "polite",
+                role: "status"
+            },
+                React.createElement('div', {
+                    className: "absolute inset-0 rounded-full border-4 border-orange-400 transition-all duration-700",
+                    style: {
+                        opacity: ringOpacity,
+                        boxShadow: `0 0 28px 6px rgba(251,146,60, ${ringOpacity * 0.72})`
+                    }
+                }),
+                React.createElement('div', { className: "relative z-10 flex flex-col items-center justify-center" },
+                    React.createElement('div', { className: `text-6xl md:text-8xl font-mono ${phase === 'BH' ? 'text-cyan-400' : 'text-green-400'}` },
+                        formatTime(time)
+                    ),
+                    React.createElement('div', { className: "text-2xl md:text-3xl text-white mt-2" },
+                        phase === 'BH' ? 'Breath Hold' : 'Recovery'
+                    ),
+                    React.createElement('div', { className: "text-lg md:text-xl text-gray-400 mt-1" },
+                        `Rep: ${rep} / ${totalReps}`
+                    )
+                )
             );
         };
 
@@ -297,81 +262,63 @@
 
             let progress = Math.max(0, Math.min(1, progressSteps / totalSteps));
 
-            return (
-                <div className="my-4 px-2">
-                    <div className="flex items-center justify-between mb-2 text-sm text-gray-400">
-                        <div>Session Progress</div>
-                        <div>{`${Math.round(progress * 100)}%`}</div>
-                    </div>
-                    <div className="w-full h-4 bg-gray-800 rounded-full overflow-hidden border border-gray-700 shadow-inner">
-                        <div
-                            className="h-full rounded-full transition-all duration-500 ease-linear"
-                            style={{
-                                width: `${progress * 100}%`,
-                                background: 'linear-gradient(90deg,#06b6d4,#10b981)'
-                            }}
-                        />
-                    </div>
-                </div>
+            return React.createElement('div', { className: "my-4 px-2" },
+                React.createElement('div', { className: "flex items-center justify-between mb-2 text-sm text-gray-400" },
+                    React.createElement('div', null, "Session Progress"),
+                    React.createElement('div', null, `${Math.round(progress * 100)}%`)
+                ),
+                React.createElement('div', { className: "w-full h-4 bg-gray-800 rounded-full overflow-hidden border border-gray-700 shadow-inner" },
+                    React.createElement('div', {
+                        className: "h-full rounded-full transition-all duration-500 ease-linear",
+                        style: { 
+                            width: `${progress * 100}%`, 
+                            background: 'linear-gradient(90deg,#06b6d4,#10b981)' 
+                        }
+                    })
+                )
             );
         };
 
         const TableSelector = ({ selectedTable, setSelectedTable, isRunning, co2Tables }) => (
-            <div className="my-6">
-                <label
-                    htmlFor="table-select"
-                    className="block text-lg font-medium text-gray-300 mb-2 text-center"
-                >
-                    Select CO2 Table
-                </label>
-                <select
-                    id="table-select"
-                    value={selectedTable}
-                    onChange={(e) => {
-                        if (!isRunning) setSelectedTable(e.target.value);
-                    }}
-                    disabled={isRunning}
-                    className="block w-full max-w-xs mx-auto bg-gray-800 border border-gray-700 text-white text-lg rounded-lg focus:ring-cyan-500 focus:border-cyan-500 p-3 disabled:opacity-50"
-                >
-                    {Object.keys(co2Tables).map((tableName) => (
-                        <option key={tableName} value={tableName}>
-                            {tableName}
-                        </option>
-                    ))}
-                </select>
-            </div>
+            React.createElement('div', { className: "my-6" },
+                React.createElement('label', { 
+                    htmlFor: "table-select", 
+                    className: "block text-lg font-medium text-gray-300 mb-2 text-center" 
+                }, "Select CO2 Table"),
+                React.createElement('select', {
+                    id: "table-select",
+                    value: selectedTable,
+                    onChange: (e) => setSelectedTable(e.target.value),
+                    disabled: isRunning,
+                    className: "block w-full max-w-xs mx-auto bg-gray-800 border border-gray-700 text-white text-lg rounded-lg focus:ring-cyan-500 focus:border-cyan-500 p-3 disabled:opacity-50"
+                },
+                    Object.keys(co2Tables).map((tableName) => 
+                        React.createElement('option', { key: tableName, value: tableName }, tableName)
+                    )
+                )
+            )
         );
 
         const Controls = ({ isRunning, onStart, onStop, onReset, resetDisabled }) => (
-            <div className="flex justify-center items-center space-x-4">
-                {!isRunning ? (
-                    <button
-                        onClick={onStart}
-                        className="bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-8 rounded-full text-2xl shadow-lg transform hover:scale-105 transition-transform"
-                    >
-                        Start
-                    </button>
-                ) : (
-                    <button
-                        onClick={onStop}
-                        className="bg-red-500 hover:bg-red-600 text-white font-bold py-4 px-8 rounded-full text-2xl shadow-lg transform hover:scale-105 transition-transform"
-                    >
-                        Stop
-                    </button>
-                )}
-                <button
-                    onClick={onReset}
-                    disabled={resetDisabled}
-                    className={
-                        'font-bold py-4 px-8 rounded-full text-2xl shadow-lg transform hover:scale-105 transition-transform ' +
+            React.createElement('div', { className: "flex justify-center items-center space-x-4" },
+                !isRunning ? 
+                    React.createElement('button', {
+                        onClick: onStart,
+                        className: "bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-8 rounded-full text-2xl shadow-lg transform hover:scale-105 transition-transform"
+                    }, "Start") :
+                    React.createElement('button', {
+                        onClick: onStop,
+                        className: "bg-red-500 hover:bg-red-600 text-white font-bold py-4 px-8 rounded-full text-2xl shadow-lg transform hover:scale-105 transition-transform"
+                    }, "Stop"),
+                React.createElement('button', {
+                    onClick: onReset,
+                    disabled: resetDisabled,
+                    className: `font-bold py-4 px-8 rounded-full text-2xl shadow-lg transform hover:scale-105 transition-transform ` +
                         (resetDisabled
                             ? 'bg-gray-600 text-white opacity-50 cursor-not-allowed hover:scale-100'
                             : 'bg-gray-500 hover:bg-gray-600 text-white')
-                    }
-                >
-                    Reset
-                </button>
-            </div>
+                }, "Reset")
+            )
         );
 
         // --- Main App Component ---
@@ -507,7 +454,7 @@
 
             useEffect(() => {
                 if (isRunning && !intervalRef.current) {
-                    ensureContext().catch(() => { });
+                    ensureContext().catch(() => { /* ignore */ });
                     intervalRef.current = setInterval(() => {
                         tick();
                     }, 1000);
@@ -527,7 +474,7 @@
             }, [isRunning, tick, ensureContext]);
 
             const handleStart = async () => {
-                await ensureContext().catch(() => { });
+                await ensureContext().catch(() => { /* ignore */ });
                 playSound('start');
                 setIsRunning(true);
                 runningRef.current = true;
@@ -572,61 +519,73 @@
                 playSound('end');
             };
 
-            return (
-                <div className="bg-black min-h-screen flex flex-col items-center justify-center text-white p-4 font-sans">
-                    <div className="w-full max-w-md mx-auto bg-gray-900/50 rounded-2xl shadow-2xl p-6 border border-gray-700">
-                        <header className="text-center mb-4">
-                            <h1 className="text-4xl font-bold text-cyan-400">CO₂ Training</h1>
-                            <p className="text-gray-400">Custom Static Apnea Trainer</p>
-                        </header>
-                        <main>
-                            <CustomInputs
-                                initialBH={initialBH}
-                                setInitialBH={setInitialBH}
-                                initialRecovery={initialRecovery}
-                                setInitialRecovery={setInitialRecovery}
-                                isRunning={isRunning}
-                                onUpdateTables={handleUpdateTables}
-                            />
-                            <TimerDisplay
-                                time={timeRemaining}
-                                phase={currentPhase}
-                                rep={currentRep + 1}
-                                totalReps={totalReps}
-                                initialDuration={initialDuration}
-                            />
-                            <SessionProgress
-                                currentRep={currentRep}
-                                currentPhase={currentPhase}
-                                timeRemaining={timeRemaining}
-                                initialDuration={initialDuration}
-                                totalReps={totalReps}
-                            />
-                            <TableSelector
-                                selectedTable={selectedTable}
-                                setSelectedTable={setSelectedTable}
-                                isRunning={isRunning}
-                                co2Tables={co2Tables}
-                            />
-                            <Controls
-                                onStart={handleStart}
-                                onStop={handleStop}
-                                onReset={handleReset}
-                                isRunning={isRunning}
-                                resetDisabled={sessionFinished}
-                            />
-                        </main>
-                        <footer className="text-center mt-8 text-gray-500 text-sm">
-                            <p>Hold your breath during the 'Breath Hold' phase.</p>
-                            <p>Breathe normally during the 'Recovery' phase.</p>
-                            <p className="mt-2">Tables auto-generate based on your custom inputs.</p>
-                        </footer>
-                    </div>
-                </div>
+            return React.createElement('div', { 
+                className: "bg-black min-h-screen flex flex-col items-center justify-center text-white p-4 font-sans" 
+            },
+                React.createElement('div', { 
+                    className: "w-full max-w-md mx-auto bg-gray-900/50 rounded-2xl shadow-2xl p-6 border border-gray-700" 
+                },
+                    React.createElement('header', { className: "text-center mb-4" },
+                        React.createElement('h1', { className: "text-4xl font-bold text-cyan-400" }, "CO₂ Training"),
+                        React.createElement('p', { className: "text-gray-400" }, "Custom Static Apnea Trainer")
+                    ),
+
+                    React.createElement('main', null,
+                        React.createElement(CustomInputs, {
+                            initialBH: initialBH,
+                            setInitialBH: setInitialBH,
+                            initialRecovery: initialRecovery,
+                            setInitialRecovery: setInitialRecovery,
+                            isRunning: isRunning,
+                            onUpdateTables: handleUpdateTables
+                        }),
+
+                        React.createElement(TimerDisplay, {
+                            time: timeRemaining,
+                            phase: currentPhase,
+                            rep: currentRep + 1,
+                            totalReps: totalReps,
+                            initialDuration: initialDuration
+                        }),
+
+                        React.createElement(SessionProgress, {
+                            currentRep: currentRep,
+                            currentPhase: currentPhase,
+                            timeRemaining: timeRemaining,
+                            initialDuration: initialDuration,
+                            totalReps: totalReps
+                        }),
+
+                        React.createElement(TableSelector, {
+                            selectedTable: selectedTable,
+                            setSelectedTable: (val) => {
+                                if (isRunning) return;
+                                setSelectedTable(val);
+                            },
+                            isRunning: isRunning,
+                            co2Tables: co2Tables
+                        }),
+
+                        React.createElement(Controls, {
+                            onStart: handleStart,
+                            onStop: handleStop,
+                            onReset: handleReset,
+                            isRunning: isRunning,
+                            resetDisabled: sessionFinished
+                        })
+                    ),
+
+                    React.createElement('footer', { className: "text-center mt-8 text-gray-500 text-sm" },
+                        React.createElement('p', null, "Hold your breath during the 'Breath Hold' phase."),
+                        React.createElement('p', null, "Breathe normally during the 'Recovery' phase."),
+                        React.createElement('p', { className: "mt-2" }, "Tables auto-generate based on your custom inputs.")
+                    )
+                )
             );
         };
 
-        ReactDOM.render(<App />, document.getElementById('root'));
+        // Render the app
+        ReactDOM.render(React.createElement(App), document.getElementById('root'));
     </script>
 </body>
 </html>
