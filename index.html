@@ -216,20 +216,46 @@
         };
 
         const TimerDisplay = ({ time, phase, rep, totalReps, initialDuration }) => {
-            const ringOpacity = initialDuration > 0 ? Math.max(0, Math.min(1, time / initialDuration)) : 0;
+            // Calculate progress (0 to 1, where 1 is full and 0 is empty)
+            const progress = initialDuration > 0 ? Math.max(0, Math.min(1, time / initialDuration)) : 0;
+            
+            // SVG circle parameters
+            const radius = 140; // Slightly smaller than the container to account for stroke width
+            const strokeWidth = 8;
+            const circumference = 2 * Math.PI * radius;
+            
+            // Calculate stroke-dasharray and stroke-dashoffset for counter-clockwise emptying
+            const strokeDasharray = circumference;
+            const strokeDashoffset = circumference * (1 - progress);
 
             return React.createElement('div', {
                 className: "relative flex flex-col items-center justify-center bg-gray-900 rounded-full w-[min(72vw,20rem)] h-[min(72vw,20rem)] md:w-80 md:h-80 mx-auto my-8 border-8 border-gray-800 shadow-lg",
                 'aria-live': "polite",
                 role: "status"
             },
-                React.createElement('div', {
-                    className: "absolute inset-0 rounded-full border-4 border-orange-400 transition-all duration-700",
-                    style: {
-                        opacity: ringOpacity,
-                        boxShadow: `0 0 28px 6px rgba(251,146,60, ${ringOpacity * 0.72})`
-                    }
-                }),
+                // SVG Progress Circle
+                React.createElement('svg', {
+                    className: "absolute inset-0 w-full h-full",
+                    style: { transform: 'rotate(-90deg)' } // Start from 12 o'clock
+                },
+                    React.createElement('circle', {
+                        cx: "50%",
+                        cy: "50%",
+                        r: radius,
+                        fill: "transparent",
+                        stroke: "#fb923c", // orange-400
+                        strokeWidth: strokeWidth,
+                        strokeDasharray: strokeDasharray,
+                        strokeDashoffset: strokeDashoffset,
+                        strokeLinecap: "round",
+                        className: "transition-all duration-1000 ease-linear",
+                        style: {
+                            filter: `drop-shadow(0px 0px 12px rgba(251, 146, 60, ${progress * 0.6}))`
+                        }
+                    })
+                ),
+                
+                // Timer content
                 React.createElement('div', { className: "relative z-10 flex flex-col items-center justify-center" },
                     React.createElement('div', { className: `text-6xl md:text-8xl font-mono ${phase === 'BH' ? 'text-cyan-400' : 'text-green-400'}` },
                         formatTime(time)
