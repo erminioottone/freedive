@@ -203,12 +203,12 @@
             );
         };
 
-        // Modified TimerDisplay with iPhone-style decreasing ring
+        // Modified TimerDisplay with iPhone-style decreasing ring (orange ring diameter matches entire timer area)
         const TimerDisplay = ({ time, phase, rep, totalReps, initialDuration }) => {
-            const radius = 90; // Radius of the circle in px
+            const timerSize = 320; // Size in px set to match the timer container (20rem = 320px)
             const stroke = 12; // Stroke thickness
-            const normalizedRadius = radius - stroke / 2;
-            const circumference = normalizedRadius * 2 * Math.PI;
+            const radius = timerSize / 2 - stroke / 2; // Radius adjusted so ring fits exactly in the timer area
+            const circumference = radius * 2 * Math.PI;
             const progress = initialDuration > 0 ? time / initialDuration : 0;
             const strokeDashoffset = circumference - progress * circumference;
 
@@ -218,8 +218,8 @@
                 role: "status"
             },
                 React.createElement('svg', {
-                    height: 2 * radius,
-                    width: 2 * radius,
+                    height: timerSize,
+                    width: timerSize,
                     className: "absolute inset-0 mx-auto my-auto",
                     style: {
                         position: 'absolute',
@@ -236,11 +236,11 @@
                         stroke: '#4b5563',
                         fill: 'transparent',
                         strokeWidth: stroke,
-                        r: normalizedRadius,
-                        cx: radius,
-                        cy: radius
+                        r: radius,
+                        cx: timerSize / 2,
+                        cy: timerSize / 2
                     }),
-                    // Foreground orange ring with dash offset
+                    // Foreground orange ring with dash offset (matches entire timer area diameter)
                     React.createElement('circle', {
                         stroke: '#fb923c',
                         fill: 'transparent',
@@ -248,9 +248,9 @@
                         strokeDasharray: `${circumference} ${circumference}`,
                         strokeDashoffset: strokeDashoffset,
                         strokeLinecap: 'round',
-                        r: normalizedRadius,
-                        cx: radius,
-                        cy: radius,
+                        r: radius,
+                        cx: timerSize / 2,
+                        cy: timerSize / 2,
                         style: {
                             transition: 'stroke-dashoffset 1s linear',
                             filter: 'drop-shadow(0 0 6px rgba(251,146,60,0.7))'
