@@ -271,12 +271,7 @@
 
         // --- Timer Display Component ---
         const TimerDisplay = ({ time, phase, rep, totalReps, initialDuration }) => {
-            const radius = 75;
-            const stroke = 10;
-            const normalizedRadius = radius - stroke / 2;
-            const circumference = normalizedRadius * 2 * Math.PI;
             const progress = initialDuration > 0 ? time / initialDuration : 0;
-            const strokeDashoffset = circumference - progress * circumference;
 
             return React.createElement('div', {
                 className: "relative flex flex-col items-center justify-center bg-gray-900 rounded-full w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 mx-auto my-6 border-4 sm:border-8 border-gray-800 shadow-lg",
@@ -284,34 +279,30 @@
                 role: "status"
             },
                 React.createElement('svg', {
-                    height: 2 * radius,
-                    width: 2 * radius,
-                    className: "absolute",
+                    className: "absolute inset-0 w-full h-full",
+                    viewBox: "0 0 200 200",
                     style: {
-                        position: 'absolute',
-                        top: '50%',
-                        left: '50%',
-                        transform: 'translate(-50%, -50%) rotate(-90deg)'
+                        transform: 'rotate(-90deg)'
                     }
                 },
                     React.createElement('circle', {
-                        stroke: '#4b5563',
+                        cx: "100",
+                        cy: "100",
+                        r: "90",
                         fill: 'transparent',
-                        strokeWidth: stroke,
-                        r: normalizedRadius,
-                        cx: radius,
-                        cy: radius
+                        stroke: '#4b5563',
+                        strokeWidth: "12"
                     }),
                     React.createElement('circle', {
-                        stroke: '#fb923c',
+                        cx: "100",
+                        cy: "100",
+                        r: "90",
                         fill: 'transparent',
-                        strokeWidth: stroke,
-                        strokeDasharray: `${circumference} ${circumference}`,
-                        strokeDashoffset: strokeDashoffset,
+                        stroke: '#fb923c',
+                        strokeWidth: "12",
+                        strokeDasharray: `${2 * Math.PI * 90}`,
+                        strokeDashoffset: `${2 * Math.PI * 90 * (1 - progress)}`,
                         strokeLinecap: 'round',
-                        r: normalizedRadius,
-                        cx: radius,
-                        cy: radius,
                         style: {
                             transition: 'stroke-dashoffset 1s linear',
                             filter: 'drop-shadow(0 0 8px rgba(251,146,60,0.7))'
