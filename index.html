@@ -438,51 +438,80 @@
         // --- Timer Display Component ---
         const TimerDisplay = ({ time, phase, rep, totalReps, initialDuration }) => {
             const progress = initialDuration > 0 ? time / initialDuration : 0;
+            const circumference = 2 * Math.PI * 88;
+            const strokeDashoffset = circumference * (1 - progress);
 
             return React.createElement('div', {
-                className: "relative flex flex-col items-center justify-center bg-gray-900 rounded-full w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 mx-auto my-6 border-4 sm:border-8 border-gray-800 shadow-lg",
+                className: "relative flex flex-col items-center justify-center rounded-full w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 mx-auto my-6",
                 'aria-live': "polite",
-                role: "status"
+                role: "status",
+                style: {
+                    background: 'radial-gradient(circle, #1a1a1a 0%, #0a0a0a 100%)'
+                }
             },
                 React.createElement('svg', {
                     className: "absolute inset-0 w-full h-full",
                     viewBox: "0 0 200 200",
                     style: {
-                        transform: 'rotate(-90deg)'
+                        transform: 'rotate(-90deg)',
+                        filter: 'drop-shadow(0 0 1px rgba(0,0,0,0.5))'
                     }
                 },
                     React.createElement('circle', {
                         cx: "100",
                         cy: "100",
-                        r: "90",
+                        r: "88",
                         fill: 'transparent',
-                        stroke: '#4b5563',
-                        strokeWidth: "12"
+                        stroke: '#2a2a2a',
+                        strokeWidth: "6",
+                        opacity: "0.3"
                     }),
                     React.createElement('circle', {
                         cx: "100",
                         cy: "100",
-                        r: "90",
+                        r: "88",
                         fill: 'transparent',
-                        stroke: '#fb923c',
-                        strokeWidth: "12",
-                        strokeDasharray: `${2 * Math.PI * 90}`,
-                        strokeDashoffset: `${2 * Math.PI * 90 * (1 - progress)}`,
+                        stroke: '#ff9f0a',
+                        strokeWidth: "6",
+                        strokeDasharray: circumference,
+                        strokeDashoffset: strokeDashoffset,
                         strokeLinecap: 'round',
                         style: {
-                            transition: 'stroke-dashoffset 1s linear',
-                            filter: 'drop-shadow(0 0 8px rgba(251,146,60,0.7))'
+                            transition: 'stroke-dashoffset 0.3s cubic-bezier(0.4, 0.0, 0.2, 1)',
+                            filter: 'drop-shadow(0 0 4px rgba(255,159,10,0.6)) drop-shadow(0 0 8px rgba(255,159,10,0.3))'
                         }
                     })
                 ),
                 React.createElement('div', { className: "relative z-10 flex flex-col items-center justify-center px-2" },
-                    React.createElement('div', { className: `text-5xl sm:text-7xl md:text-8xl font-mono font-bold ${phase === 'BH' ? 'text-cyan-400' : 'text-green-400'}` },
+                    React.createElement('div', { 
+                        className: "text-6xl sm:text-7xl md:text-8xl font-light tracking-tight",
+                        style: {
+                            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif',
+                            color: '#ffffff',
+                            textShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                            fontVariantNumeric: 'tabular-nums'
+                        }
+                    },
                         formatTime(time)
                     ),
-                    React.createElement('div', { className: "text-xl sm:text-2xl md:text-3xl text-white mt-2 font-semibold" },
+                    React.createElement('div', { 
+                        className: "text-lg sm:text-xl md:text-2xl mt-3 font-medium",
+                        style: {
+                            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif',
+                            color: phase === 'BH' ? '#5ac8fa' : '#34c759',
+                            letterSpacing: '0.02em'
+                        }
+                    },
                         phase === 'BH' ? 'Breath Hold' : 'Recovery'
                     ),
-                    React.createElement('div', { className: "text-base sm:text-lg md:text-xl text-gray-400 mt-1" },
+                    React.createElement('div', { 
+                        className: "text-sm sm:text-base md:text-lg mt-2",
+                        style: {
+                            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif',
+                            color: '#8e8e93',
+                            letterSpacing: '0.01em'
+                        }
+                    },
                         `Rep ${rep} / ${totalReps}`
                     )
                 )
