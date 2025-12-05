@@ -436,59 +436,100 @@
         };
 
         // --- Timer Display Component ---
-        const TimerDisplay = ({ time, phase, rep, totalReps, initialDuration }) => {
-            const progress = initialDuration > 0 ? time / initialDuration : 0;
+const TimerDisplay = ({ time, phase, rep, totalReps, initialDuration }) => {
+    // Calculate progress (0 to 1)
+    const progress = initialDuration > 0 ? time / initialDuration : 0;
+    
+    // Geometry settings
+    const radius = 90;
+    const cx = 100;
+    const cy = 100;
+    const circumference = 2 * Math.PI * radius;
+    
+    // Determine active color based on phase (matching your original colors)
+    // Cyan-400 for BH, Orange-400 (#fb923c) for Recovery
+    const activeColor = phase === 'BH' ? '#22d3ee' : '#fb923c';
 
-            return React.createElement('div', {
-                className: "relative flex flex-col items-center justify-center bg-gray-900 rounded-full w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 mx-auto my-6 border-4 sm:border-8 border-gray-800 shadow-lg",
-                'aria-live': "polite",
-                role: "status"
+    // Calculate Knob (Handle) Position
+    // We convert progress to radians to find the X,Y coordinates on the circle
+    const angle = progress * 2 * Math.PI;
+    const knobX = cx + radius * Math.cos(angle);
+    const knobY = cy + radius * Math.sin(angle);
+
+    return React.createElement('div', {
+        // iOS Style: Removed heavy border/shadow, kept simple dark circle
+        className: "relative flex flex-col items-center justify-center bg-gray-900 rounded-full w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 mx-auto my-6",
+        'aria-live': "polite",
+        role: "status"
+    },
+        React.createElement('svg', {
+            className: "absolute inset-0 w-full h-full",
+            viewBox: "0 0 200 200",
+            style: {
+                transform: 'rotate(-90deg)', // Rotates start point to 12 o'clock
+                overflow: 'visible' // Allows knob shadow to bleed out slightly if needed
+            }
+        },
+            // 1. Background Track (Darker, thinner)
+            React.createElement('circle', {
+                cx: cx,
+                cy: cy,
+                r: radius,
+                fill: 'transparent',
+                stroke: '#1f2937', // gray-800/900 mix
+                strokeWidth: "8"   // Slightly thinner than original for elegance
+            }),
+            // 2. Progress Arc
+            React.createElement('circle', {
+                cx: cx,
+                cy: cy,
+                r: radius,
+                fill: 'transparent',
+                stroke: activeColor,
+                strokeWidth: "8",
+                strokeDasharray: circumference,
+                strokeDashoffset: circumference * (1 - progress),
+                strokeLinecap: 'round',
+                style: {
+                    transition: 'stroke-dashoffset 1s linear'
+                }
+            }),
+            // 3. The "Knob" (The dot at the end of the line - Key iOS feature)
+            React.createElement('circle', {
+                cx: knobX,
+                cy: knobY,
+                r: "6", // Size of the handle
+                fill: "#ffffff", // Usually white or activeColor. White pops more like iOS.
+                stroke: activeColor, // Optional: colored border on the knob
+                strokeWidth: "0", 
+                style: {
+                    transition: 'all 1s linear', // smooth movement matching the stroke
+                    filter: `drop-shadow(0 0 4px ${activeColor})` // slight glow
+                }
+            })
+        ),
+        // Text Content
+        React.createElement('div', { className: "relative z-10 flex flex-col items-center justify-center px-2" },
+            // Time: Thinner font, tabular nums for stability
+            React.createElement('div', { 
+                className: "text-6xl sm:text-7xl md:text-8xl font-light text-white tracking-tight",
+                style: { fontVariantNumeric: 'tabular-nums' } 
             },
-                React.createElement('svg', {
-                    className: "absolute inset-0 w-full h-full",
-                    viewBox: "0 0 200 200",
-                    style: {
-                        transform: 'rotate(-90deg)'
-                    }
-                },
-                    React.createElement('circle', {
-                        cx: "100",
-                        cy: "100",
-                        r: "90",
-                        fill: 'transparent',
-                        stroke: '#4b5563',
-                        strokeWidth: "6"
-                    }),
-                    React.createElement('circle', {
-                        cx: "100",
-                        cy: "100",
-                        r: "90",
-                        fill: 'transparent',
-                        stroke: '#fb923c',
-                        strokeWidth: "6",
-                        strokeDasharray: `${2 * Math.PI * 90}`,
-                        strokeDashoffset: `${2 * Math.PI * 90 * (1 - progress)}`,
-                        strokeLinecap: 'round',
-                        style: {
-                            transition: 'stroke-dashoffset 1s linear',
-                            filter: 'drop-shadow(0 0 8px rgba(251,146,60,0.7))'
-                        }
-                    })
-                ),
-                React.createElement('div', { className: "relative z-10 flex flex-col items-center justify-center px-2" },
-                    React.createElement('div', { className: `text-5xl sm:text-7xl md:text-8xl font-mono font-bold ${phase === 'BH' ? 'text-cyan-400' : 'text-green-400'}` },
-                        formatTime(time)
-                    ),
-                    React.createElement('div', { className: "text-xl sm:text-2xl md:text-3xl text-white mt-2 font-semibold" },
-                        phase === 'BH' ? 'Breath Hold' : 'Recovery'
-                    ),
-                    React.createElement('div', { className: "text-base sm:text-lg md:text-xl text-gray-400 mt-1" },
-                        `Rep ${rep} / ${totalReps}`
-                    )
-                )
-            );
-        };
-
+                formatTime(time)
+            ),
+            // Label: Smaller, offset below
+            React.createElement('div', { 
+                className: `text-lg sm:text-xl font-medium mt-2 tracking-wide ${phase === 'BH' ? 'text-cyan-400' : 'text-orange-400'}` 
+            },
+                phase === 'BH' ? 'BREATH HOLD' : 'RECOVERY'
+            ),
+            // Rep counter: Subtle gray
+            React.createElement('div', { className: "text-sm text-gray-500 mt-1" },
+                `Rep ${rep} / ${totalReps}`
+            )
+        )
+    );
+};
         // --- Training Screen Component ---
         const TrainingScreen = ({ config, onExit, resumeSession }) => {
             const co2Tables = useMemo(() => 
