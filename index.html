@@ -6,29 +6,16 @@
     <meta name="theme-color" content="#000000" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <title>CO₂ Training - Custom Static Apnea Trainer</title>
+    <title>Apnea Trainer — CO₂ &amp; O₂ Tables</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        * {
-            -webkit-tap-highlight-color: transparent;
-        }
-        body { 
-            margin: 0; 
-            padding: 0;
-            overflow-x: hidden;
-            touch-action: manipulation;
-        }
-        #root { 
-            width: 100vw; 
-            min-height: 100vh;
-            min-height: 100dvh;
-        }
-        input, select, textarea {
-            font-size: 16px;
-        }
+        * { -webkit-tap-highlight-color: transparent; }
+        body { margin: 0; padding: 0; overflow-x: hidden; touch-action: manipulation; }
+        #root { width: 100vw; min-height: 100vh; min-height: 100dvh; }
+        input, select, textarea { font-size: 16px; }
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after {
                 animation-duration: 0.01ms !important;
@@ -39,825 +26,822 @@
     </style>
 </head>
 <body>
-    <div id="root"></div>
+<div id="root"></div>
 
-    <script type="text/babel">
-        const { useState, useEffect, useRef, useCallback, useMemo } = React;
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
-        // --- IndexedDB Helper ---
-        const DB_NAME = 'CO2TrainingDB';
-        const DB_VERSION = 1;
-        const STORE_CONFIG = 'config';
-        const STORE_SESSION = 'session';
-        const STORE_HISTORY = 'history';
+// ─── IndexedDB ────────────────────────────────────────────────────────────────
 
-        const openDB = () => {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open(DB_NAME, DB_VERSION);
-                
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => resolve(request.result);
-                
-                request.onupgradeneeded = (event) => {
-                    const db = event.target.result;
-                    
-                    if (!db.objectStoreNames.contains(STORE_CONFIG)) {
-                        db.createObjectStore(STORE_CONFIG, { keyPath: 'id' });
-                    }
-                    if (!db.objectStoreNames.contains(STORE_SESSION)) {
-                        db.createObjectStore(STORE_SESSION, { keyPath: 'id' });
-                    }
-                    if (!db.objectStoreNames.contains(STORE_HISTORY)) {
-                        const historyStore = db.createObjectStore(STORE_HISTORY, { keyPath: 'id', autoIncrement: true });
-                        historyStore.createIndex('timestamp', 'timestamp', { unique: false });
-                    }
-                };
-            });
+const DB_NAME    = 'ApneaTrainerDB';
+const DB_VERSION = 1;
+const STORE_CONFIG  = 'config';
+const STORE_SESSION = 'session';
+const STORE_HISTORY = 'history';
+
+const openDB = () => new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onerror   = () => reject(req.error);
+    req.onsuccess = () => resolve(req.result);
+    req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(STORE_CONFIG))
+            db.createObjectStore(STORE_CONFIG, { keyPath: 'id' });
+        if (!db.objectStoreNames.contains(STORE_SESSION))
+            db.createObjectStore(STORE_SESSION, { keyPath: 'id' });
+        if (!db.objectStoreNames.contains(STORE_HISTORY)) {
+            const hs = db.createObjectStore(STORE_HISTORY, { keyPath: 'id', autoIncrement: true });
+            hs.createIndex('timestamp', 'timestamp', { unique: false });
+        }
+    };
+});
+
+const saveData = async (store, data) => {
+    try {
+        const db = await openDB();
+        const tx = db.transaction([store], 'readwrite');
+        tx.objectStore(store).put(data);
+        return new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+    } catch (e) { console.error('saveData:', e); }
+};
+
+const loadData = async (store, id) => {
+    try {
+        const db  = await openDB();
+        const tx  = db.transaction([store], 'readonly');
+        const req = tx.objectStore(store).get(id);
+        return new Promise((res, rej) => { req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error); });
+    } catch (e) { console.error('loadData:', e); return null; }
+};
+
+const deleteData = async (store, id) => {
+    try {
+        const db = await openDB();
+        const tx = db.transaction([store], 'readwrite');
+        tx.objectStore(store).delete(id);
+        return new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+    } catch (e) { console.error('deleteData:', e); }
+};
+
+const loadHistory = async () => {
+    try {
+        const db  = await openDB();
+        const tx  = db.transaction([STORE_HISTORY], 'readonly');
+        const req = tx.objectStore(STORE_HISTORY).index('timestamp').openCursor(null, 'prev');
+        return new Promise((res, rej) => {
+            const rows = [];
+            req.onsuccess = (e) => { const c = e.target.result; if (c) { rows.push(c.value); c.continue(); } else res(rows); };
+            req.onerror = () => rej(req.error);
+        });
+    } catch (e) { console.error('loadHistory:', e); return []; }
+};
+
+const saveHistory = async (data) => {
+    try {
+        const db = await openDB();
+        const tx = db.transaction([STORE_HISTORY], 'readwrite');
+        tx.objectStore(STORE_HISTORY).add({ ...data, timestamp: Date.now() });
+        return new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+    } catch (e) { console.error('saveHistory:', e); }
+};
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+
+const formatTime = (s) =>
+    `${Math.floor(s / 60).toString().padStart(2,'0')}:${(s % 60).toString().padStart(2,'0')}`;
+
+const roundTime = (s) => {
+    if (s <= 60)  return Math.round(s /  5) *  5;
+    if (s <= 300) return Math.round(s / 15) * 15;
+    return Math.round(s / 30) * 30;
+};
+
+// CO₂: fixed BH per week, recovery decreases each rep
+const generateCO2Tables = (initialBH, initialRecovery, weeks = 6) => {
+    const tables = {};
+    for (let w = 1; w <= weeks; w++) {
+        const weekBH  = roundTime(initialBH + Math.floor(initialBH * 0.3) * (w - 1));
+        const baseRec = roundTime(Math.max(30, initialRecovery - Math.floor(initialRecovery * 0.15) * (w - 1)));
+        tables[`Week ${w}`] = Array.from({ length: 8 }, (_, rep) => ({
+            bh: weekBH,
+            rb: roundTime(Math.max(15, baseRec - Math.floor(baseRec * 0.05 * rep)))
+        }));
+    }
+    return tables;
+};
+
+// O₂: BH increases each rep, fixed recovery per week
+const generateO2Tables = (initialBH, recovery, weeks = 6) => {
+    const tables = {};
+    for (let w = 1; w <= weeks; w++) {
+        const weekStartBH  = roundTime(initialBH + Math.floor(initialBH * 0.15) * (w - 1));
+        const repIncrement = Math.max(5, roundTime(weekStartBH * 0.1));
+        tables[`Week ${w}`] = Array.from({ length: 8 }, (_, rep) => ({
+            bh: roundTime(weekStartBH + repIncrement * rep),
+            rb: recovery
+        }));
+    }
+    return tables;
+};
+
+// ─── Mode metadata ────────────────────────────────────────────────────────────
+
+const MODE = {
+    co2: {
+        label:        'CO₂ Table',
+        molecule:     'Carbon Dioxide',
+        description:  'Improve tolerance to CO₂ buildup — the main trigger of the urge to breathe.',
+        features:     ['Fixed breath hold each rep', 'Recovery decreases each rep', 'Builds CO₂ tolerance'],
+        bhLabel:      'Initial Breath Hold',
+        bhHint:       'Same for all reps',
+        recLabel:     'Initial Recovery Time',
+        recHint:      'Decreases each rep',
+        accentText:   'text-cyan-400',
+        accentBorder: 'border-cyan-700',
+        accentBg:     'bg-cyan-950/30',
+        accentBtn:    'from-cyan-500 to-green-500 hover:from-cyan-600 hover:to-green-600',
+        generator:    generateCO2Tables,
+    },
+    o2: {
+        label:        'O₂ Table',
+        molecule:     'Oxygen',
+        description:  'Train your body to work with lower O₂ — extends maximum dive time.',
+        features:     ['Breath hold increases each rep', 'Fixed recovery between reps', 'Builds hypoxic tolerance'],
+        bhLabel:      'Starting Breath Hold',
+        bhHint:       'Increases each rep',
+        recLabel:     'Recovery Between Reps',
+        recHint:      'Fixed for all reps',
+        accentText:   'text-purple-400',
+        accentBorder: 'border-purple-700',
+        accentBg:     'bg-purple-950/30',
+        accentBtn:    'from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600',
+        generator:    generateO2Tables,
+    },
+};
+
+// ─── Audio hook ───────────────────────────────────────────────────────────────
+
+const useAudio = () => {
+    const ctxRef = useRef(null);
+
+    const ensureContext = useCallback(async () => {
+        if (!ctxRef.current) {
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            if (!Ctx) return null;
+            ctxRef.current = new Ctx();
+        }
+        if (ctxRef.current.state === 'suspended') await ctxRef.current.resume().catch(() => {});
+        return ctxRef.current;
+    }, []);
+
+    const playSound = useCallback(async (type) => {
+        const ctx = await ensureContext();
+        if (!ctx) return;
+        const osc  = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        const t = ctx.currentTime;
+        const defs = {
+            start: () => { osc.type='sine';     osc.frequency.setValueAtTime(523.25,t); gain.gain.setValueAtTime(0.5,t);  gain.gain.exponentialRampToValueAtTime(0.0001,t+0.5);  return 0.52; },
+            end:   () => { osc.type='triangle'; osc.frequency.setValueAtTime(880,t);    gain.gain.setValueAtTime(0.5,t);  gain.gain.exponentialRampToValueAtTime(0.0001,t+1.0);  return 1.02; },
+            rep:   () => { osc.type='square';   osc.frequency.setValueAtTime(440,t);    gain.gain.setValueAtTime(0.35,t); gain.gain.exponentialRampToValueAtTime(0.0001,t+0.25); return 0.27; },
+            prep:  () => { osc.type='sine';     osc.frequency.setValueAtTime(660,t);    gain.gain.setValueAtTime(0.3,t);  gain.gain.exponentialRampToValueAtTime(0.0001,t+0.4);  return 0.42; },
         };
+        const dur = (defs[type] || defs.start)();
+        osc.start(t); osc.stop(t + dur);
+    }, [ensureContext]);
 
-        const saveData = async (storeName, data) => {
-            try {
-                const db = await openDB();
-                const transaction = db.transaction([storeName], 'readwrite');
-                const store = transaction.objectStore(storeName);
-                store.put(data);
-                return new Promise((resolve, reject) => {
-                    transaction.oncomplete = () => resolve();
-                    transaction.onerror = () => reject(transaction.error);
-                });
-            } catch (error) {
-                console.error('Error saving data:', error);
-            }
-        };
+    return { playSound, ensureContext };
+};
 
-        const loadData = async (storeName, id) => {
-            try {
-                const db = await openDB();
-                const transaction = db.transaction([storeName], 'readonly');
-                const store = transaction.objectStore(storeName);
-                const request = store.get(id);
-                return new Promise((resolve, reject) => {
-                    request.onsuccess = () => resolve(request.result);
-                    request.onerror = () => reject(request.error);
-                });
-            } catch (error) {
-                console.error('Error loading data:', error);
-                return null;
-            }
-        };
+// ─── Wake Lock hook ───────────────────────────────────────────────────────────
 
-        const deleteData = async (storeName, id) => {
-            try {
-                const db = await openDB();
-                const transaction = db.transaction([storeName], 'readwrite');
-                const store = transaction.objectStore(storeName);
-                store.delete(id);
-                return new Promise((resolve, reject) => {
-                    transaction.oncomplete = () => resolve();
-                    transaction.onerror = () => reject(transaction.error);
-                });
-            } catch (error) {
-                console.error('Error deleting data:', error);
-            }
-        };
+const useWakeLock = () => {
+    const lockRef = useRef(null);
 
-        const loadHistory = async () => {
-            try {
-                const db = await openDB();
-                const transaction = db.transaction([STORE_HISTORY], 'readonly');
-                const store = transaction.objectStore(STORE_HISTORY);
-                const index = store.index('timestamp');
-                const request = index.openCursor(null, 'prev');
-                
-                return new Promise((resolve, reject) => {
-                    const results = [];
-                    request.onsuccess = (event) => {
-                        const cursor = event.target.result;
-                        if (cursor) {
-                            results.push(cursor.value);
-                            cursor.continue();
-                        } else {
-                            resolve(results);
-                        }
-                    };
-                    request.onerror = () => reject(request.error);
-                });
-            } catch (error) {
-                console.error('Error loading history:', error);
-                return [];
-            }
-        };
+    const request = useCallback(async () => {
+        if (!('wakeLock' in navigator)) return;
+        try { lockRef.current = await navigator.wakeLock.request('screen'); }
+        catch (e) { console.warn('Wake lock failed:', e.message); }
+    }, []);
 
-        const saveHistory = async (sessionData) => {
-            try {
-                const db = await openDB();
-                const transaction = db.transaction([STORE_HISTORY], 'readwrite');
-                const store = transaction.objectStore(STORE_HISTORY);
-                store.add({ ...sessionData, timestamp: Date.now() });
-                return new Promise((resolve, reject) => {
-                    transaction.oncomplete = () => resolve();
-                    transaction.onerror = () => reject(transaction.error);
-                });
-            } catch (error) {
-                console.error('Error saving history:', error);
-            }
-        };
+    const release = useCallback(() => {
+        if (lockRef.current) { lockRef.current.release().catch(() => {}); lockRef.current = null; }
+    }, []);
 
-        // --- Helper Functions ---
-        const formatTime = (seconds) => {
-            const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
-            const secs = (seconds % 60).toString().padStart(2, '0');
-            return `${mins}:${secs}`;
-        };
+    const reacquireIfNeeded = useCallback(async (running) => {
+        if (document.visibilityState === 'visible' && running) await request();
+    }, [request]);
 
-        const roundTime = (seconds) => {
-            if (seconds <= 60) return Math.round(seconds / 5) * 5;
-            if (seconds <= 300) return Math.round(seconds / 15) * 15;
-            return Math.round(seconds / 30) * 30;
-        };
+    return { requestWakeLock: request, releaseWakeLock: release, reacquireIfNeeded };
+};
 
-        const generateCO2Tables = (initialBH, initialRecovery, weeks = 6) => {
-            const tables = {};
-            for (let week = 1; week <= weeks; week++) {
-                const weekName = `Week ${week}`;
-                const weeklyTable = [];
-                const bhIncrement = Math.floor(initialBH * 0.3);
-                const rawWeeklyBH = initialBH + (bhIncrement * (week - 1));
-                const weeklyBH = roundTime(rawWeeklyBH);
+// ─── Phase display metadata ───────────────────────────────────────────────────
 
-                const recoveryDecrement = Math.floor(initialRecovery * 0.15);
-                const rawBaseRecovery = Math.max(30, initialRecovery - (recoveryDecrement * (week - 1)));
-                const baseRecovery = roundTime(rawBaseRecovery);
+const PHASE_META = {
+    PREP: { color: '#4ade80', label: 'BREATHE NORMALLY', textClass: 'text-green-400'  },
+    BH:   { color: '#22d3ee', label: 'BREATH HOLD',      textClass: 'text-cyan-400'   },
+    RB:   { color: '#fb923c', label: 'RECOVERY',         textClass: 'text-orange-400' },
+};
 
-                for (let rep = 0; rep < 8; rep++) {
-                    const recoveryReduction = Math.floor(baseRecovery * 0.05 * rep);
-                    const rawFinalRecovery = Math.max(15, baseRecovery - recoveryReduction);
-                    const finalRecovery = roundTime(rawFinalRecovery);
+// ─── TimerDisplay ─────────────────────────────────────────────────────────────
 
-                    weeklyTable.push({
-                        bh: weeklyBH,
-                        rb: finalRecovery
-                    });
-                }
-                tables[weekName] = weeklyTable;
-            }
-            return tables;
-        };
-
-        // --- Audio Hook ---
-        const useAudio = () => {
-            const audioContextRef = useRef(null);
-
-            const ensureContext = useCallback(async () => {
-                if (!audioContextRef.current) {
-                    const Ctx = window.AudioContext || window.webkitAudioContext;
-                    if (!Ctx) return null;
-                    audioContextRef.current = new Ctx();
-                }
-                const ctx = audioContextRef.current;
-                if (ctx.state === 'suspended') {
-                    try { await ctx.resume(); } catch (e) { console.warn('Audio context resume failed:', e); }
-                }
-                return ctx;
-            }, []);
-
-            const playSound = useCallback(async (type) => {
-                const ctx = await ensureContext();
-                if (!ctx) return;
-
-                const oscillator = ctx.createOscillator();
-                const gainNode = ctx.createGain();
-                oscillator.connect(gainNode);
-                gainNode.connect(ctx.destination);
-
-                let duration = 0.6;
-                switch(type) {
-                    case 'start':
-                        oscillator.type = 'sine';
-                        oscillator.frequency.setValueAtTime(523.25, ctx.currentTime);
-                        gainNode.gain.setValueAtTime(0.5, ctx.currentTime);
-                        gainNode.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5);
-                        duration = 0.5;
-                        break;
-                    case 'end':
-                        oscillator.type = 'triangle';
-                        oscillator.frequency.setValueAtTime(880, ctx.currentTime);
-                        gainNode.gain.setValueAtTime(0.5, ctx.currentTime);
-                        gainNode.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1);
-                        duration = 1.0;
-                        break;
-                    case 'rep':
-                        oscillator.type = 'square';
-                        oscillator.frequency.setValueAtTime(440, ctx.currentTime);
-                        gainNode.gain.setValueAtTime(0.35, ctx.currentTime);
-                        gainNode.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.25);
-                        duration = 0.25;
-                        break;
-                }
-                oscillator.start(ctx.currentTime);
-                oscillator.stop(ctx.currentTime + duration + 0.02);
-            }, [ensureContext]);
-
-            return { playSound, ensureContext };
-        };
-
-        // --- Setup Screen Component ---
-        const SetupScreen = ({ onStart, savedConfig, hasSavedSession }) => {
-            const [bhMinutes, setBhMinutes] = useState(savedConfig?.bhMinutes || 1);
-            const [bhSeconds, setBhSeconds] = useState(savedConfig?.bhSeconds || 30);
-            const [recoveryMinutes, setRecoveryMinutes] = useState(savedConfig?.recoveryMinutes || 2);
-            const [recoverySeconds, setRecoverySeconds] = useState(savedConfig?.recoverySeconds || 0);
-            const [weeks, setWeeks] = useState(savedConfig?.weeks || 6);
-            const [selectedWeek, setSelectedWeek] = useState(savedConfig?.selectedWeek || 1);
-            const [showHistory, setShowHistory] = useState(false);
-            const [history, setHistory] = useState([]);
-
-            useEffect(() => {
-                loadHistory().then(setHistory);
-            }, []);
-
-            const handleStart = () => {
-                const totalBH = bhMinutes * 60 + bhSeconds;
-                const totalRecovery = recoveryMinutes * 60 + recoverySeconds;
-                
-                if (totalBH > 0 && totalRecovery > 0) {
-                    const config = {
-                        breathHold: totalBH,
-                        recovery: totalRecovery,
-                        weeks: weeks,
-                        selectedWeek: selectedWeek,
-                        bhMinutes,
-                        bhSeconds,
-                        recoveryMinutes,
-                        recoverySeconds
-                    };
-                    saveData(STORE_CONFIG, { id: 'current', ...config });
-                    onStart(config);
-                }
-            };
-
-            const handleResume = async () => {
-                const config = await loadData(STORE_CONFIG, 'current');
-                if (config) {
-                    onStart(config, true);
-                }
-            };
-
-            return React.createElement('div', {
-                className: "bg-black min-h-screen min-h-[100dvh] flex flex-col items-center justify-start py-6 sm:justify-center text-white px-4 font-sans overflow-y-auto"
-            },
-                React.createElement('div', {
-                    className: "w-full max-w-lg mx-auto bg-gray-900/50 rounded-2xl shadow-2xl p-6 sm:p-8 border border-gray-700"
-                },
-                    React.createElement('header', { className: "text-center mb-6" },
-                        React.createElement('h1', { className: "text-4xl sm:text-5xl font-bold text-cyan-400 mb-2" }, "CO₂ Training"),
-                        React.createElement('p', { className: "text-sm sm:text-base text-gray-400" }, "Custom Static Apnea Trainer")
-                    ),
-
-                    hasSavedSession && React.createElement('div', { className: "mb-6 p-4 bg-cyan-900/30 border border-cyan-700 rounded-lg" },
-                        React.createElement('p', { className: "text-cyan-300 text-sm mb-3" }, "You have a saved session in progress"),
-                        React.createElement('button', {
-                            onClick: handleResume,
-                            className: "w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-6 rounded-lg transition-all"
-                        }, "Resume Session")
-                    ),
-
-                    React.createElement('div', { className: "space-y-6" },
-                        React.createElement('div', { className: "bg-gray-800 rounded-lg p-4 border border-gray-700" },
-                            React.createElement('label', { className: "block text-sm font-medium text-gray-300 mb-3" }, "Initial Breath Hold Time"),
-                            React.createElement('div', { className: "flex items-center justify-center space-x-3" },
-                                React.createElement('input', {
-                                    type: "number",
-                                    min: "0",
-                                    max: "10",
-                                    value: bhMinutes,
-                                    onChange: (e) => setBhMinutes(parseInt(e.target.value) || 0),
-                                    className: "w-16 sm:w-20 bg-gray-700 border border-gray-600 text-white text-center text-lg rounded p-3"
-                                }),
-                                React.createElement('span', { className: "text-gray-400 font-medium" }, "min"),
-                                React.createElement('input', {
-                                    type: "number",
-                                    min: "0",
-                                    max: "59",
-                                    value: bhSeconds,
-                                    onChange: (e) => setBhSeconds(parseInt(e.target.value) || 0),
-                                    className: "w-16 sm:w-20 bg-gray-700 border border-gray-600 text-white text-center text-lg rounded p-3"
-                                }),
-                                React.createElement('span', { className: "text-gray-400 font-medium" }, "sec")
-                            )
-                        ),
-
-                        React.createElement('div', { className: "bg-gray-800 rounded-lg p-4 border border-gray-700" },
-                            React.createElement('label', { className: "block text-sm font-medium text-gray-300 mb-3" }, "Initial Recovery Time"),
-                            React.createElement('div', { className: "flex items-center justify-center space-x-3" },
-                                React.createElement('input', {
-                                    type: "number",
-                                    min: "0",
-                                    max: "10",
-                                    value: recoveryMinutes,
-                                    onChange: (e) => setRecoveryMinutes(parseInt(e.target.value) || 0),
-                                    className: "w-16 sm:w-20 bg-gray-700 border border-gray-600 text-white text-center text-lg rounded p-3"
-                                }),
-                                React.createElement('span', { className: "text-gray-400 font-medium" }, "min"),
-                                React.createElement('input', {
-                                    type: "number",
-                                    min: "0",
-                                    max: "59",
-                                    value: recoverySeconds,
-                                    onChange: (e) => setRecoverySeconds(parseInt(e.target.value) || 0),
-                                    className: "w-16 sm:w-20 bg-gray-700 border border-gray-600 text-white text-center text-lg rounded p-3"
-                                }),
-                                React.createElement('span', { className: "text-gray-400 font-medium" }, "sec")
-                            )
-                        ),
-
-                        React.createElement('div', { className: "bg-gray-800 rounded-lg p-4 border border-gray-700" },
-                            React.createElement('label', { className: "block text-sm font-medium text-gray-300 mb-3" }, "Training Program Length"),
-                            React.createElement('select', {
-                                value: weeks,
-                                onChange: (e) => setWeeks(parseInt(e.target.value)),
-                                className: "w-full bg-gray-700 border border-gray-600 text-white text-center text-lg rounded-lg p-3"
-                            },
-                                [4, 5, 6, 7, 8, 9, 10].map(w => 
-                                    React.createElement('option', { key: w, value: w }, `${w} Weeks`)
-                                )
-                            )
-                        ),
-
-                        React.createElement('div', { className: "bg-gray-800 rounded-lg p-4 border border-gray-700" },
-                            React.createElement('label', { className: "block text-sm font-medium text-gray-300 mb-3" }, "Start at Week"),
-                            React.createElement('select', {
-                                value: selectedWeek,
-                                onChange: (e) => setSelectedWeek(parseInt(e.target.value)),
-                                className: "w-full bg-gray-700 border border-gray-600 text-white text-center text-lg rounded-lg p-3"
-                            },
-                                Array.from({length: weeks}, (_, i) => i + 1).map(w => 
-                                    React.createElement('option', { key: w, value: w }, `Week ${w}`)
-                                )
-                            )
-                        )
-                    ),
-
-                    React.createElement('button', {
-                        onClick: handleStart,
-                        className: "w-full mt-8 bg-gradient-to-r from-cyan-500 to-green-500 hover:from-cyan-600 hover:to-green-600 active:from-cyan-700 active:to-green-700 text-white font-bold py-4 px-8 rounded-full text-xl shadow-lg transform active:scale-95 transition-all"
-                    }, hasSavedSession ? "Start New Session" : "Start Training"),
-
-                    history.length > 0 && React.createElement('div', { className: "mt-6" },
-                        React.createElement('button', {
-                            onClick: () => setShowHistory(!showHistory),
-                            className: "w-full text-gray-400 hover:text-white transition-colors text-sm"
-                        }, showHistory ? "Hide History" : "Show Training History"),
-                        
-                        showHistory && React.createElement('div', { className: "mt-4 space-y-2 max-h-64 overflow-y-auto" },
-                            history.slice(0, 10).map((session) => 
-                                React.createElement('div', {
-                                    key: session.id,
-                                    className: "bg-gray-800/50 p-3 rounded border border-gray-700 text-xs"
-                                },
-                                    React.createElement('div', { className: "text-gray-300" },
-                                        new Date(session.timestamp).toLocaleDateString() + ' ' + 
-                                        new Date(session.timestamp).toLocaleTimeString()
-                                    ),
-                                    React.createElement('div', { className: "text-gray-400 mt-1" },
-                                        `${session.weekName} - Completed ${session.totalReps} reps`
-                                    )
-                                )
-                            )
-                        )
-                    ),
-
-                    React.createElement('footer', { className: "text-center mt-6 text-gray-500 text-xs sm:text-sm" },
-                        React.createElement('p', null, "Your progress is automatically saved."),
-                        React.createElement('p', { className: "mt-1" }, "Tables will auto-generate based on your inputs.")
-                    )
-                )
-            );
-        };
-
-        // --- Timer Display Component ---
 const TimerDisplay = ({ time, phase, rep, totalReps, initialDuration }) => {
-    // Calculate progress (0 to 1)
-    const progress = initialDuration > 0 ? time / initialDuration : 0;
-    
-    // Geometry settings
-    const radius = 90;
-    const cx = 100;
-    const cy = 100;
-    const circumference = 2 * Math.PI * radius;
-    
-    // Determine active color based on phase (matching your original colors)
-    // Cyan-400 for BH, Orange-400 (#fb923c) for Recovery
-    const activeColor = phase === 'BH' ? '#22d3ee' : '#fb923c';
+    const progress      = initialDuration > 0 ? time / initialDuration : 0;
+    const circumference = 2 * Math.PI * 90;
+    const meta          = PHASE_META[phase] || PHASE_META.BH;
 
     return React.createElement('div', {
-        // iOS Style: Removed heavy border/shadow, kept simple dark circle
         className: "relative flex flex-col items-center justify-center bg-gray-900 rounded-full w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 mx-auto my-6",
-        'aria-live': "polite",
-        role: "status"
+        role: "status", 'aria-live': "polite"
     },
         React.createElement('svg', {
             className: "absolute inset-0 w-full h-full",
             viewBox: "0 0 200 200",
-            style: {
-                transform: 'rotate(-90deg)', // Rotates start point to 12 o'clock
-                overflow: 'visible' // Allows knob shadow to bleed out slightly if needed
-            }
+            style: { transform: 'rotate(-90deg)' }
         },
-            // 1. Background Track (Darker, thinner)
+            React.createElement('circle', { cx:100, cy:100, r:90, fill:'transparent', stroke:'#1f2937', strokeWidth:"8" }),
             React.createElement('circle', {
-                cx: cx,
-                cy: cy,
-                r: radius,
-                fill: 'transparent',
-                stroke: '#1f2937', // gray-800/900 mix
-                strokeWidth: "8"   // Slightly thinner than original for elegance
-            }),
-            // 2. Progress Arc
-            React.createElement('circle', {
-                cx: cx,
-                cy: cy,
-                r: radius,
-                fill: 'transparent',
-                stroke: activeColor,
-                strokeWidth: "8",
+                cx:100, cy:100, r:90, fill:'transparent',
+                stroke: meta.color, strokeWidth:"8",
                 strokeDasharray: circumference,
                 strokeDashoffset: circumference * (1 - progress),
                 strokeLinecap: 'round',
-                style: {
-                    transition: 'stroke-dashoffset 1s linear'
-                }
+                style: { transition: 'stroke-dashoffset 1s linear, stroke 0.4s ease' }
             })
         ),
-        // Text Content
         React.createElement('div', { className: "relative z-10 flex flex-col items-center justify-center px-2" },
-            // Time: Thinner font, tabular nums for stability
-            React.createElement('div', { 
+            React.createElement('div', {
                 className: "text-6xl sm:text-7xl md:text-8xl font-light text-white tracking-tight",
-                style: { fontVariantNumeric: 'tabular-nums' } 
-            },
-                formatTime(time)
-            ),
-            // Label: Smaller, offset below
-            React.createElement('div', { 
-                className: `text-lg sm:text-xl font-medium mt-2 tracking-wide ${phase === 'BH' ? 'text-cyan-400' : 'text-orange-400'}` 
-            },
-                phase === 'BH' ? 'BREATH HOLD' : 'RECOVERY'
-            ),
-            // Rep counter: Subtle gray
+                style: { fontVariantNumeric: 'tabular-nums' }
+            }, formatTime(time)),
+            React.createElement('div', { className: `text-lg sm:text-xl font-medium mt-2 tracking-wide ${meta.textClass}` }, meta.label),
             React.createElement('div', { className: "text-sm text-gray-500 mt-1" },
-                `Rep ${rep} / ${totalReps}`
+                phase === 'PREP' ? 'Relax and breathe' : `Rep ${rep} / ${totalReps}`
             )
         )
     );
 };
-        // --- Training Screen Component ---
-        const TrainingScreen = ({ config, onExit, resumeSession }) => {
-            const co2Tables = useMemo(() => 
-                generateCO2Tables(config.breathHold, config.recovery, config.weeks), 
-                [config.breathHold, config.recovery, config.weeks]
-            );
 
-            const [selectedTable, setSelectedTable] = useState(resumeSession?.selectedTable || `Week ${config.selectedWeek}`);
-            const [isRunning, setIsRunning] = useState(false);
-            const [currentRep, setCurrentRep] = useState(resumeSession?.currentRep || 0);
-            const [currentPhase, setCurrentPhase] = useState(resumeSession?.currentPhase || 'BH');
-            const tableData = co2Tables[selectedTable];
-            const totalReps = tableData.length;
+// ─── TypeSelectionScreen ──────────────────────────────────────────────────────
 
-            const initialFirst = resumeSession?.initialDuration || tableData[0].bh;
-            const [timeRemaining, setTimeRemaining] = useState(resumeSession?.timeRemaining || initialFirst);
-            const [initialDuration, setInitialDuration] = useState(initialFirst);
-            const [sessionFinished, setSessionFinished] = useState(false);
-
-            const repRef = useRef(currentRep);
-            const phaseRef = useRef(currentPhase);
-            const timeRef = useRef(timeRemaining);
-            const runningRef = useRef(isRunning);
-            const intervalRef = useRef(null);
-            const selectedTableRef = useRef(selectedTable);
-
-            const { playSound, ensureContext } = useAudio();
-
-            useEffect(() => { repRef.current = currentRep; }, [currentRep]);
-            useEffect(() => { phaseRef.current = currentPhase; }, [currentPhase]);
-            useEffect(() => { timeRef.current = timeRemaining; }, [timeRemaining]);
-            useEffect(() => { runningRef.current = isRunning; }, [isRunning]);
-            useEffect(() => { selectedTableRef.current = selectedTable; }, [selectedTable]);
-
-            // Save session state periodically
-            useEffect(() => {
-                const saveSession = () => {
-                    if (!sessionFinished) {
-                        saveData(STORE_SESSION, {
-                            id: 'current',
-                            selectedTable: selectedTableRef.current,
-                            currentRep: repRef.current,
-                            currentPhase: phaseRef.current,
-                            timeRemaining: timeRef.current,
-                            initialDuration: initialDuration,
-                            timestamp: Date.now()
-                        });
-                    }
-                };
-
-                const interval = setInterval(saveSession, 2000);
-                return () => clearInterval(interval);
-            }, [sessionFinished, initialDuration]);
-
-            useEffect(() => {
-                if (co2Tables[selectedTable]) {
-                    const initial = co2Tables[selectedTable][0].bh;
-                    setIsRunning(false);
-                    setCurrentRep(0);
-                    setCurrentPhase('BH');
-                    setTimeRemaining(initial);
-                    setInitialDuration(initial);
-                    setSessionFinished(false);
-
-                    repRef.current = 0;
-                    phaseRef.current = 'BH';
-                    timeRef.current = initial;
-                }
-            }, [selectedTable, co2Tables]);
-
-            useEffect(() => {
-                return () => {
-                    if (intervalRef.current) {
-                        clearInterval(intervalRef.current);
-                        intervalRef.current = null;
-                    }
-                };
-            }, []);
-
-            const tick = useCallback(() => {
-                if (!runningRef.current) return;
-
-                const next = Math.max(0, timeRef.current - 1);
-                setTimeRemaining(next);
-                timeRef.current = next;
-
-                if (next === 0) {
-                    const phase = phaseRef.current;
-                    const rep = repRef.current;
-
-                    if (phase === 'BH') {
-                        playSound('end');
-                        const nextDuration = tableData[rep].rb;
-                        setCurrentPhase('RB');
-                        phaseRef.current = 'RB';
-                        setInitialDuration(nextDuration);
-                        setTimeRemaining(nextDuration);
-                        timeRef.current = nextDuration;
-                    } else {
-                        if (rep < totalReps - 1) {
-                            playSound('rep');
-                            const newRep = rep + 1;
-                            repRef.current = newRep;
-                            setCurrentRep(newRep);
-
-                            const nextDuration = tableData[newRep].bh;
-                            setCurrentPhase('BH');
-                            phaseRef.current = 'BH';
-                            setInitialDuration(nextDuration);
-                            setTimeRemaining(nextDuration);
-                            timeRef.current = nextDuration;
-                        } else {
-                            playSound('end');
-                            setSessionFinished(true);
-                            setIsRunning(false);
-                            runningRef.current = false;
-
-                            // Save to history
-                            saveHistory({
-                                weekName: selectedTableRef.current,
-                                totalReps: totalReps,
-                                completed: true
-                            });
-
-                            // Clear saved session
-                            deleteData(STORE_SESSION, 'current');
-
-                            if (intervalRef.current) {
-                                clearInterval(intervalRef.current);
-                                intervalRef.current = null;
-                            }
-                        }
-                    }
-                }
-            }, [playSound, tableData, totalReps]);
-
-            useEffect(() => {
-                if (isRunning && !intervalRef.current) {
-                    ensureContext().catch(() => {});
-                    intervalRef.current = setInterval(tick, 1000);
-                } else if (!isRunning && intervalRef.current) {
-                    clearInterval(intervalRef.current);
-                    intervalRef.current = null;
-                }
-            }, [isRunning, tick, ensureContext]);
-
-            const handleStart = async () => {
-                await ensureContext().catch(() => {});
-                playSound('start');
-                setIsRunning(true);
-                runningRef.current = true;
-                setSessionFinished(false);
-            };
-
-            const handleStop = () => {
-                setIsRunning(false);
-                runningRef.current = false;
-            };
-
-            const handleReset = () => {
-                if (sessionFinished) return;
-                setIsRunning(false);
-                runningRef.current = false;
-                setCurrentRep(0);
-                repRef.current = 0;
-                setCurrentPhase('BH');
-                phaseRef.current = 'BH';
-
-                const initial = co2Tables[selectedTable][0].bh;
-                setInitialDuration(initial);
-                setTimeRemaining(initial);
-                timeRef.current = initial;
-
-                if (intervalRef.current) {
-                    clearInterval(intervalRef.current);
-                    intervalRef.current = null;
-                }
-                setSessionFinished(false);
-                playSound('end');
-            };
-
-            const progress = useMemo(() => {
-                const totalSteps = totalReps * 2;
-                let completedBefore = currentRep * 2;
-                let withinStepProgress = initialDuration > 0 ? (initialDuration - timeRemaining) / initialDuration : 0;
-
-                let progressSteps = completedBefore;
-                if (currentPhase === 'BH') {
-                    progressSteps += withinStepProgress;
-                } else {
-                    progressSteps += 1 + withinStepProgress;
-                }
-
-                return Math.max(0, Math.min(1, progressSteps / totalSteps));
-            }, [currentRep, currentPhase, timeRemaining, initialDuration, totalReps]);
-
-            return React.createElement('div', {
-                className: "bg-black min-h-screen min-h-[100dvh] flex flex-col items-center justify-start py-3 sm:py-4 text-white px-3 sm:px-4 font-sans overflow-y-auto"
-            },
-                React.createElement('div', {
-                    className: "w-full max-w-2xl mx-auto"
-                },
-                    React.createElement('div', { className: "flex items-center justify-between mb-4" },
-                        React.createElement('button', {
-                            onClick: onExit,
-                            className: "text-gray-400 hover:text-white transition-colors text-sm sm:text-base"
-                        }, "← Back to Setup"),
-                        React.createElement('h1', { className: "text-2xl sm:text-3xl font-bold text-cyan-400" }, selectedTable)
-                    ),
-
-                    React.createElement(TimerDisplay, {
-                        time: timeRemaining,
-                        phase: currentPhase,
-                        rep: currentRep + 1,
-                        totalReps: totalReps,
-                        initialDuration: initialDuration
-                    }),
-
-                    React.createElement('div', { className: "my-4 px-2" },
-                        React.createElement('div', { className: "flex items-center justify-between mb-2 text-xs sm:text-sm text-gray-400" },
-                            React.createElement('div', null, "Session Progress"),
-                            React.createElement('div', null, `${Math.round(progress * 100)}%`)
-                        ),
-                        React.createElement('div', { className: "w-full h-3 sm:h-4 bg-gray-800 rounded-full overflow-hidden border border-gray-700 shadow-inner" },
-                            React.createElement('div', {
-                                className: "h-full rounded-full transition-all duration-500 ease-linear",
-                                style: { 
-                                    width: `${progress * 100}%`, 
-                                    background: 'linear-gradient(90deg,#06b6d4,#10b981)' 
-                                }
-                            })
-                        )
-                    ),
-
-                    React.createElement('div', { className: "my-4 sm:my-6" },
-                        React.createElement('label', { 
-                            htmlFor: "week-select", 
-                            className: "block text-sm sm:text-base font-medium text-gray-300 mb-2 text-center" 
-                        }, "Change Week"),
-                        React.createElement('select', {
-                            id: "week-select",
-                            value: selectedTable,
-                            onChange: (e) => setSelectedTable(e.target.value),
-                            disabled: isRunning,
-                            className: "block w-full max-w-xs mx-auto bg-gray-800 border border-gray-700 text-white text-base sm:text-lg rounded-lg p-2 sm:p-3 disabled:opacity-50"
-                        },
-                            Object.keys(co2Tables).map((tableName) => 
-                                React.createElement('option', { key: tableName, value: tableName }, tableName)
-                            )
-                        )
-                    ),
-
-                    React.createElement('div', { className: "flex justify-center items-center space-x-3 sm:space-x-4 my-6" },
-                        !isRunning ? 
-                            React.createElement('button', {
-                                onClick: handleStart,
-                                className: "bg-green-500 hover:bg-green-600 active:bg-green-700 text-white font-bold py-3 px-8 sm:py-4 sm:px-10 rounded-full text-xl sm:text-2xl shadow-lg transform active:scale-95 transition-all"
-                            }, "Start") :
-                            React.createElement('button', {
-                                onClick: handleStop,
-                                className: "bg-red-500 hover:bg-red-600 active:bg-red-700 text-white font-bold py-3 px-8 sm:py-4 sm:px-10 rounded-full text-xl sm:text-2xl shadow-lg transform active:scale-95 transition-all"
-                            }, "Stop"),
-                        React.createElement('button', {
-                            onClick: handleReset,
-                            disabled: sessionFinished,
-                            className: `font-bold py-3 px-8 sm:py-4 sm:px-10 rounded-full text-xl sm:text-2xl shadow-lg transition-all ` +
-                                (sessionFinished
-                                    ? 'bg-gray-600 text-white opacity-50 cursor-not-allowed'
-                                    : 'bg-gray-500 hover:bg-gray-600 active:bg-gray-700 transform active:scale-95')
-                        }, "Reset")
-                    ),
-
-                    sessionFinished && React.createElement('div', { 
-                        className: "mt-6 p-4 bg-green-900/30 border border-green-700 rounded-lg text-center" 
-                    },
-                        React.createElement('p', { className: "text-green-300 text-lg font-semibold" }, "🎉 Session Complete!"),
-                        React.createElement('p', { className: "text-green-400 text-sm mt-2" }, "Great work! Your progress has been saved.")
-                    ),
-
-                    React.createElement('footer', { className: "text-center mt-6 text-gray-500 text-xs sm:text-sm" },
-                        React.createElement('p', null, "Hold your breath during 'Breath Hold'."),
-                        React.createElement('p', null, "Breathe normally during 'Recovery'."),
-                        React.createElement('p', { className: "mt-2 text-cyan-400" }, "Progress auto-saves every 2 seconds")
+const TypeSelectionScreen = ({ onSelectMode, hasSavedSession, savedConfig, onResume }) => {
+    const ModeCard = ({ modeKey }) => {
+        const m = MODE[modeKey];
+        return React.createElement('button', {
+            onClick: () => onSelectMode(modeKey),
+            className: `w-full text-left p-5 sm:p-6 rounded-2xl border-2 ${m.accentBorder} ${m.accentBg} transition-all active:scale-[0.98] hover:brightness-110`
+        },
+            React.createElement('div', { className: "flex items-start justify-between mb-2" },
+                React.createElement('div', null,
+                    React.createElement('span', { className: `text-xs font-semibold tracking-widest uppercase ${m.accentText} mb-1 block` }, m.molecule),
+                    React.createElement('h2', { className: "text-2xl sm:text-3xl font-bold text-white" }, m.label)
+                ),
+                React.createElement('div', { className: `w-11 h-11 rounded-full border-2 ${m.accentBorder} flex items-center justify-center flex-shrink-0 ml-3` },
+                    React.createElement('span', { className: `text-xl font-bold ${m.accentText}` }, modeKey === 'co2' ? '↓' : '↑')
+                )
+            ),
+            React.createElement('p', { className: "text-gray-400 text-sm mb-4 leading-relaxed" }, m.description),
+            React.createElement('ul', { className: "space-y-1.5" },
+                m.features.map((f, i) =>
+                    React.createElement('li', { key: i, className: "text-xs text-gray-400 flex items-center space-x-2" },
+                        React.createElement('span', { className: `w-1.5 h-1.5 rounded-full flex-shrink-0 ${modeKey === 'co2' ? 'bg-cyan-400' : 'bg-purple-400'}` }),
+                        React.createElement('span', null, f)
                     )
                 )
-            );
-        };
+            )
+        );
+    };
 
-        // --- Main App ---
-        const App = () => {
-            const [screen, setScreen] = useState('setup');
-            const [trainingConfig, setTrainingConfig] = useState(null);
-            const [savedConfig, setSavedConfig] = useState(null);
-            const [savedSession, setSavedSession] = useState(null);
-            const [loading, setLoading] = useState(true);
+    return React.createElement('div', {
+        className: "bg-black min-h-screen min-h-[100dvh] flex flex-col items-center justify-start py-8 sm:justify-center text-white px-4 font-sans overflow-y-auto"
+    },
+        React.createElement('div', { className: "w-full max-w-lg mx-auto" },
+            React.createElement('header', { className: "text-center mb-8" },
+                React.createElement('svg', { viewBox:"0 0 48 48", className:"w-12 h-12 mx-auto mb-3", fill:"none", 'aria-hidden':"true" },
+                    React.createElement('circle', { cx:24, cy:24, r:22, stroke:"#22d3ee", strokeWidth:2, opacity:0.3 }),
+                    React.createElement('circle', { cx:24, cy:24, r:14, stroke:"#22d3ee", strokeWidth:2 }),
+                    React.createElement('path', { d:"M24 10 L24 38", stroke:"#22d3ee", strokeWidth:1.5, strokeLinecap:"round", opacity:0.5 }),
+                    React.createElement('path', { d:"M24 17 L24 10", stroke:"#4ade80", strokeWidth:2.5, strokeLinecap:"round" }),
+                    React.createElement('path', { d:"M24 27 L24 38", stroke:"#fb923c", strokeWidth:2.5, strokeLinecap:"round" })
+                ),
+                React.createElement('h1', { className: "text-4xl sm:text-5xl font-bold text-white mb-2" }, "Apnea Trainer"),
+                React.createElement('p', { className: "text-sm sm:text-base text-gray-500" }, "Select your training type")
+            ),
 
-            useEffect(() => {
-                const loadSavedData = async () => {
-                    const config = await loadData(STORE_CONFIG, 'current');
-                    const session = await loadData(STORE_SESSION, 'current');
-                    
-                    if (config) {
-                        setSavedConfig(config);
-                    }
-                    if (session) {
-                        setSavedSession(session);
-                    }
-                    setLoading(false);
-                };
-                loadSavedData();
-            }, []);
+            hasSavedSession && React.createElement('div', { className: "mb-5 p-4 bg-gray-800/60 border border-gray-600 rounded-xl flex items-center justify-between" },
+                React.createElement('div', null,
+                    React.createElement('p', { className: "text-white text-sm font-semibold" }, "Session in progress"),
+                    React.createElement('p', { className: "text-gray-400 text-xs mt-0.5" },
+                        `${MODE[savedConfig?.mode]?.label ?? ''} · Week ${savedConfig?.selectedWeek ?? '?'}`
+                    )
+                ),
+                React.createElement('button', {
+                    onClick: onResume,
+                    className: "bg-white text-black font-bold text-sm py-2 px-4 rounded-lg active:scale-95 transition-all flex-shrink-0 ml-4"
+                }, "Resume →")
+            ),
 
-            const handleStartTraining = (config, resume = false) => {
-                setTrainingConfig(config);
-                if (!resume) {
-                    setSavedSession(null);
-                    deleteData(STORE_SESSION, 'current');
-                }
-                setScreen('training');
+            React.createElement('div', { className: "space-y-4" },
+                React.createElement(ModeCard, { modeKey: 'co2' }),
+                React.createElement(ModeCard, { modeKey: 'o2'  })
+            ),
+
+            React.createElement('footer', { className: "text-center mt-8 text-gray-600 text-xs" },
+                "Progress is automatically saved between sessions."
+            )
+        )
+    );
+};
+
+// ─── SetupScreen ──────────────────────────────────────────────────────────────
+
+const SetupScreen = ({ mode, onStart, onBack, savedConfig, hasSavedSession }) => {
+    const m = MODE[mode];
+
+    const [bhMinutes,       setBhMinutes]       = useState(savedConfig?.bhMinutes       ?? 1);
+    const [bhSeconds,       setBhSeconds]       = useState(savedConfig?.bhSeconds       ?? 30);
+    const [recoveryMinutes, setRecoveryMinutes] = useState(savedConfig?.recoveryMinutes ?? 2);
+    const [recoverySeconds, setRecoverySeconds] = useState(savedConfig?.recoverySeconds ?? 0);
+    const [prepMinutes,     setPrepMinutes]     = useState(savedConfig?.prepMinutes     ?? 2);
+    const [prepSeconds,     setPrepSeconds]     = useState(savedConfig?.prepSeconds     ?? 0);
+    const [weeks,           setWeeks]           = useState(savedConfig?.weeks           ?? 6);
+    const [selectedWeek,    setSelectedWeek]    = useState(savedConfig?.selectedWeek    ?? 1);
+    const [showHistory,     setShowHistory]     = useState(false);
+    const [history,         setHistory]         = useState([]);
+
+    useEffect(() => { loadHistory().then(setHistory); }, []);
+
+    const handleStart = () => {
+        const totalBH   = bhMinutes * 60 + bhSeconds;
+        const totalRec  = recoveryMinutes * 60 + recoverySeconds;
+        const totalPrep = prepMinutes * 60 + prepSeconds;
+        if (totalBH > 0 && totalRec > 0) {
+            const config = {
+                mode, breathHold: totalBH, recovery: totalRec, prepTime: totalPrep,
+                weeks, selectedWeek,
+                bhMinutes, bhSeconds, recoveryMinutes, recoverySeconds, prepMinutes, prepSeconds
             };
+            saveData(STORE_CONFIG, { id: 'current', ...config });
+            onStart(config, false);
+        }
+    };
 
-            const handleExitTraining = () => {
-                setScreen('setup');
-            };
+    const handleResume = async () => {
+        const config = await loadData(STORE_CONFIG, 'current');
+        if (config) onStart(config, true);
+    };
 
-            if (loading) {
-                return React.createElement('div', {
-                    className: "bg-black min-h-screen flex items-center justify-center text-white"
-                },
-                    React.createElement('div', { className: "text-xl" }, "Loading...")
-                );
-            }
+    const TimeInput = ({ label, hint, mins, secs, onMins, onSecs }) =>
+        React.createElement('div', { className: `bg-gray-800 rounded-lg p-4 border ${m.accentBorder} border-opacity-40` },
+            React.createElement('div', { className: "flex items-baseline justify-between mb-3" },
+                React.createElement('label', { className: "text-sm font-medium text-gray-300" }, label),
+                hint && React.createElement('span', { className: "text-xs text-gray-500 italic" }, hint)
+            ),
+            React.createElement('div', { className: "flex items-center justify-center space-x-3" },
+                React.createElement('input', { type:"number", min:"0", max:"10", value:mins, onChange:(e)=>onMins(parseInt(e.target.value)||0), className:"w-16 sm:w-20 bg-gray-700 border border-gray-600 text-white text-center text-lg rounded p-3" }),
+                React.createElement('span', { className:"text-gray-400 font-medium" }, "min"),
+                React.createElement('input', { type:"number", min:"0", max:"59", value:secs, onChange:(e)=>onSecs(parseInt(e.target.value)||0), className:"w-16 sm:w-20 bg-gray-700 border border-gray-600 text-white text-center text-lg rounded p-3" }),
+                React.createElement('span', { className:"text-gray-400 font-medium" }, "sec")
+            )
+        );
 
-            return screen === 'setup' 
-                ? React.createElement(SetupScreen, { 
-                    onStart: handleStartTraining,
-                    savedConfig: savedConfig,
-                    hasSavedSession: !!savedSession
-                })
-                : React.createElement(TrainingScreen, { 
-                    config: trainingConfig, 
-                    onExit: handleExitTraining,
-                    resumeSession: savedSession
+    return React.createElement('div', {
+        className: "bg-black min-h-screen min-h-[100dvh] flex flex-col items-center justify-start py-6 sm:justify-center text-white px-4 font-sans overflow-y-auto"
+    },
+        React.createElement('div', { className: "w-full max-w-lg mx-auto bg-gray-900/50 rounded-2xl shadow-2xl p-6 sm:p-8 border border-gray-700" },
+
+            React.createElement('div', { className: "flex items-center mb-6" },
+                React.createElement('button', { onClick: onBack, className: "text-gray-500 hover:text-white transition-colors mr-3 text-sm" }, "←"),
+                React.createElement('div', { className: "flex-1 text-center" },
+                    React.createElement('h1', { className: `text-3xl sm:text-4xl font-bold ${m.accentText} mb-0.5` }, m.label),
+                    React.createElement('p', { className: "text-xs text-gray-500" }, m.description.split(' — ')[1] || '')
+                ),
+                React.createElement('div', { className: "w-6" })
+            ),
+
+            hasSavedSession && React.createElement('div', { className: `mb-5 p-4 ${m.accentBg} border ${m.accentBorder} rounded-lg` },
+                React.createElement('p', { className: `${m.accentText} text-sm mb-3` }, "Saved session in progress"),
+                React.createElement('button', { onClick: handleResume, className: `w-full bg-gradient-to-r ${m.accentBtn} active:opacity-80 text-white font-bold py-2.5 px-6 rounded-lg transition-all` }, "Resume Session")
+            ),
+
+            React.createElement('div', { className: "space-y-4" },
+                React.createElement(TimeInput, { label:"Preparation (normal breathing)", hint:"Before table starts", mins:prepMinutes, secs:prepSeconds, onMins:setPrepMinutes, onSecs:setPrepSeconds }),
+                React.createElement(TimeInput, { label:m.bhLabel,  hint:m.bhHint,  mins:bhMinutes,       secs:bhSeconds,       onMins:setBhMinutes,       onSecs:setBhSeconds }),
+                React.createElement(TimeInput, { label:m.recLabel, hint:m.recHint, mins:recoveryMinutes, secs:recoverySeconds, onMins:setRecoveryMinutes, onSecs:setRecoverySeconds }),
+
+                React.createElement('div', { className: "bg-gray-800 rounded-lg p-4 border border-gray-700" },
+                    React.createElement('label', { className: "block text-sm font-medium text-gray-300 mb-3" }, "Training Program Length"),
+                    React.createElement('select', { value:weeks, onChange:(e)=>setWeeks(parseInt(e.target.value)), className:"w-full bg-gray-700 border border-gray-600 text-white text-center text-lg rounded-lg p-3" },
+                        [4,5,6,7,8,9,10].map(w => React.createElement('option', { key:w, value:w }, `${w} Weeks`))
+                    )
+                ),
+
+                React.createElement('div', { className: "bg-gray-800 rounded-lg p-4 border border-gray-700" },
+                    React.createElement('label', { className: "block text-sm font-medium text-gray-300 mb-3" }, "Start at Week"),
+                    React.createElement('select', { value:selectedWeek, onChange:(e)=>setSelectedWeek(parseInt(e.target.value)), className:"w-full bg-gray-700 border border-gray-600 text-white text-center text-lg rounded-lg p-3" },
+                        Array.from({ length:weeks }, (_,i) => i+1).map(w => React.createElement('option', { key:w, value:w }, `Week ${w}`))
+                    )
+                )
+            ),
+
+            React.createElement('button', {
+                onClick: handleStart,
+                className: `w-full mt-8 bg-gradient-to-r ${m.accentBtn} active:opacity-80 text-white font-bold py-4 px-8 rounded-full text-xl shadow-lg transform active:scale-95 transition-all`
+            }, hasSavedSession ? "Start New Session" : "Start Training"),
+
+            history.length > 0 && React.createElement('div', { className: "mt-6" },
+                React.createElement('button', { onClick:()=>setShowHistory(!showHistory), className:"w-full text-gray-500 hover:text-gray-300 transition-colors text-sm" },
+                    showHistory ? "Hide History" : "Show Training History"
+                ),
+                showHistory && React.createElement('div', { className: "mt-3 space-y-2 max-h-56 overflow-y-auto" },
+                    history.slice(0, 15).map((s) =>
+                        React.createElement('div', { key:s.id, className:"bg-gray-800/50 p-3 rounded border border-gray-700 text-xs flex items-center justify-between" },
+                            React.createElement('div', null,
+                                React.createElement('div', { className:"text-gray-300" }, new Date(s.timestamp).toLocaleDateString() + ' ' + new Date(s.timestamp).toLocaleTimeString()),
+                                React.createElement('div', { className:"text-gray-500 mt-0.5" }, `${s.weekName} · ${s.totalReps} reps`)
+                            ),
+                            s.mode && React.createElement('span', { className:`text-xs px-2 py-0.5 rounded-full border ${s.mode==='o2' ? 'border-purple-700 text-purple-400' : 'border-cyan-700 text-cyan-400'}` },
+                                MODE[s.mode]?.label || s.mode
+                            )
+                        )
+                    )
+                )
+            ),
+
+            React.createElement('footer', { className: "text-center mt-6 text-gray-600 text-xs" },
+                "Screen stays on during training · Progress auto-saves every 2 s"
+            )
+        )
+    );
+};
+
+// ─── TrainingScreen ───────────────────────────────────────────────────────────
+
+const TrainingScreen = ({ config, onExit, resumeSession }) => {
+    const m        = MODE[config.mode] || MODE.co2;
+    const prepTime = config.prepTime ?? 120;
+
+    const tables  = useMemo(() => m.generator(config.breathHold, config.recovery, config.weeks), [config, m]);
+
+    const [selectedTable, setSelectedTable] = useState(resumeSession?.selectedTable || `Week ${config.selectedWeek}`);
+    const tableData = tables[selectedTable] || tables[Object.keys(tables)[0]];
+    const totalReps = tableData.length;
+
+    const initPhase = resumeSession?.currentPhase    || (prepTime > 0 ? 'PREP' : 'BH');
+    const initTime  = resumeSession?.timeRemaining   || (prepTime > 0 ? prepTime : tableData[0].bh);
+    const initDur   = resumeSession?.initialDuration || initTime;
+
+    const [isRunning,       setIsRunning]       = useState(false);
+    const [currentRep,      setCurrentRep]      = useState(resumeSession?.currentRep || 0);
+    const [currentPhase,    setCurrentPhase]    = useState(initPhase);
+    const [timeRemaining,   setTimeRemaining]   = useState(initTime);
+    const [initialDuration, setInitialDuration] = useState(initDur);
+    const [sessionFinished, setSessionFinished] = useState(false);
+
+    const repRef      = useRef(currentRep);
+    const phaseRef    = useRef(currentPhase);
+    const timeRef     = useRef(timeRemaining);
+    const runningRef  = useRef(false);
+    const intervalRef = useRef(null);
+    const tableRef    = useRef(selectedTable);
+    const firstMount  = useRef(true);
+
+    useEffect(() => { repRef.current     = currentRep;    }, [currentRep]);
+    useEffect(() => { phaseRef.current   = currentPhase;  }, [currentPhase]);
+    useEffect(() => { timeRef.current    = timeRemaining; }, [timeRemaining]);
+    useEffect(() => { runningRef.current = isRunning;     }, [isRunning]);
+    useEffect(() => { tableRef.current   = selectedTable; }, [selectedTable]);
+
+    const { playSound, ensureContext }                                = useAudio();
+    const { requestWakeLock, releaseWakeLock, reacquireIfNeeded }     = useWakeLock();
+
+    useEffect(() => {
+        const h = () => reacquireIfNeeded(runningRef.current);
+        document.addEventListener('visibilitychange', h);
+        return () => document.removeEventListener('visibilitychange', h);
+    }, [reacquireIfNeeded]);
+
+    useEffect(() => () => releaseWakeLock(), [releaseWakeLock]);
+
+    // Auto-save every 2 s
+    useEffect(() => {
+        const id = setInterval(() => {
+            if (!sessionFinished)
+                saveData(STORE_SESSION, {
+                    id: 'current',
+                    selectedTable: tableRef.current, currentRep: repRef.current,
+                    currentPhase: phaseRef.current,  timeRemaining: timeRef.current,
+                    initialDuration, timestamp: Date.now()
                 });
-        };
+        }, 2000);
+        return () => clearInterval(id);
+    }, [sessionFinished, initialDuration]);
 
-        ReactDOM.render(React.createElement(App), document.getElementById('root'));
-    </script>
+    // Reset when week changes — skipped on first mount to preserve resume state
+    useEffect(() => {
+        if (firstMount.current) { firstMount.current = false; return; }
+        if (!tables[selectedTable]) return;
+        const sp = prepTime > 0 ? 'PREP' : 'BH';
+        const st = prepTime > 0 ? prepTime : tables[selectedTable][0].bh;
+        if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+        setIsRunning(false); runningRef.current = false;
+        releaseWakeLock();
+        setCurrentRep(0);    repRef.current   = 0;
+        setCurrentPhase(sp); phaseRef.current = sp;
+        setTimeRemaining(st); timeRef.current = st;
+        setInitialDuration(st);
+        setSessionFinished(false);
+    }, [selectedTable, tables, prepTime, releaseWakeLock]);
+
+    useEffect(() => () => { if (intervalRef.current) clearInterval(intervalRef.current); }, []);
+
+    // ── Tick ──────────────────────────────────────────────────────────────────
+    const tick = useCallback(() => {
+        if (!runningRef.current) return;
+        const next = Math.max(0, timeRef.current - 1);
+        setTimeRemaining(next); timeRef.current = next;
+        if (next > 0) return;
+
+        const phase = phaseRef.current;
+        const rep   = repRef.current;
+
+        if (phase === 'PREP') {
+            playSound('prep');
+            const dur = tableData[0].bh;
+            setCurrentPhase('BH'); phaseRef.current = 'BH';
+            setInitialDuration(dur); setTimeRemaining(dur); timeRef.current = dur;
+
+        } else if (phase === 'BH') {
+            playSound('end');
+            const dur = tableData[rep].rb;
+            setCurrentPhase('RB'); phaseRef.current = 'RB';
+            setInitialDuration(dur); setTimeRemaining(dur); timeRef.current = dur;
+
+        } else {
+            if (rep < totalReps - 1) {
+                playSound('rep');
+                const nr = rep + 1;
+                repRef.current = nr; setCurrentRep(nr);
+                const dur = tableData[nr].bh;
+                setCurrentPhase('BH'); phaseRef.current = 'BH';
+                setInitialDuration(dur); setTimeRemaining(dur); timeRef.current = dur;
+            } else {
+                playSound('end');
+                setSessionFinished(true); setIsRunning(false); runningRef.current = false;
+                releaseWakeLock();
+                saveHistory({ mode: config.mode, weekName: tableRef.current, totalReps, completed: true });
+                deleteData(STORE_SESSION, 'current');
+                if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+            }
+        }
+    }, [playSound, tableData, totalReps, releaseWakeLock, config.mode]);
+
+    useEffect(() => {
+        if (isRunning && !intervalRef.current) {
+            ensureContext().catch(()=>{});
+            intervalRef.current = setInterval(tick, 1000);
+        } else if (!isRunning && intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+        }
+    }, [isRunning, tick, ensureContext]);
+
+    // ── Handlers ──────────────────────────────────────────────────────────────
+    const handleStart = async () => {
+        await ensureContext().catch(()=>{});
+        await requestWakeLock();
+        playSound('start');
+        setIsRunning(true); runningRef.current = true;
+        setSessionFinished(false);
+    };
+
+    const handleStop = () => {
+        setIsRunning(false); runningRef.current = false;
+        releaseWakeLock();
+    };
+
+    const handleReset = () => {
+        if (sessionFinished) return;
+        if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+        setIsRunning(false); runningRef.current = false;
+        releaseWakeLock();
+        setCurrentRep(0); repRef.current = 0;
+        const sp = prepTime > 0 ? 'PREP' : 'BH';
+        const st = prepTime > 0 ? prepTime : tableData[0].bh;
+        setCurrentPhase(sp); phaseRef.current = sp;
+        setInitialDuration(st); setTimeRemaining(st); timeRef.current = st;
+        setSessionFinished(false);
+        playSound('end');
+    };
+
+    // ── Derived ───────────────────────────────────────────────────────────────
+    const progress = useMemo(() => {
+        if (currentPhase === 'PREP') return 0;
+        const total  = totalReps * 2;
+        const within = initialDuration > 0 ? (initialDuration - timeRemaining) / initialDuration : 0;
+        const steps  = currentRep * 2 + (currentPhase === 'BH' ? within : 1 + within);
+        return Math.max(0, Math.min(1, steps / total));
+    }, [currentRep, currentPhase, timeRemaining, initialDuration, totalReps]);
+
+    return React.createElement('div', {
+        className: "bg-black min-h-screen min-h-[100dvh] flex flex-col items-center justify-start py-3 sm:py-4 text-white px-3 sm:px-4 font-sans overflow-y-auto"
+    },
+        React.createElement('div', { className: "w-full max-w-2xl mx-auto" },
+
+            // Header
+            React.createElement('div', { className: "flex items-center justify-between mb-4" },
+                React.createElement('button', { onClick: onExit, className: "text-gray-500 hover:text-white transition-colors text-sm sm:text-base" }, "← Back"),
+                React.createElement('div', { className: "text-center" },
+                    React.createElement('h1', { className: `text-xl sm:text-2xl font-bold ${m.accentText}` }, m.label),
+                    React.createElement('p', { className: "text-gray-500 text-xs" }, selectedTable)
+                ),
+                isRunning
+                    ? React.createElement('div', { className: "flex items-center space-x-1 text-green-400 text-xs" },
+                          React.createElement('div', { className: "w-2 h-2 rounded-full bg-green-400 animate-pulse" }),
+                          React.createElement('span', { className: "hidden sm:inline" }, "Screen on")
+                      )
+                    : React.createElement('div', { className: "w-16" })
+            ),
+
+            // Timer circle
+            React.createElement(TimerDisplay, { time:timeRemaining, phase:currentPhase, rep:currentRep+1, totalReps, initialDuration }),
+
+            // Progress bar
+            React.createElement('div', { className: "my-4 px-2" },
+                React.createElement('div', { className: "flex items-center justify-between mb-2 text-xs sm:text-sm text-gray-500" },
+                    React.createElement('span', null, currentPhase === 'PREP' ? 'Preparing…' : 'Session Progress'),
+                    React.createElement('span', null, `${Math.round(progress * 100)}%`)
+                ),
+                React.createElement('div', { className: "w-full h-3 bg-gray-800 rounded-full overflow-hidden border border-gray-700" },
+                    React.createElement('div', {
+                        className: "h-full rounded-full transition-all duration-500 ease-linear",
+                        style: { width:`${progress*100}%`, background:'linear-gradient(90deg,#06b6d4,#10b981)' }
+                    })
+                )
+            ),
+
+            // Week selector
+            React.createElement('div', { className: "my-4" },
+                React.createElement('label', { htmlFor:"week-select", className:"block text-sm font-medium text-gray-400 mb-2 text-center" }, "Change Week"),
+                React.createElement('select', {
+                    id:"week-select", value:selectedTable,
+                    onChange:(e)=>setSelectedTable(e.target.value),
+                    disabled:isRunning,
+                    className:"block w-full max-w-xs mx-auto bg-gray-800 border border-gray-700 text-white text-base sm:text-lg rounded-lg p-2 sm:p-3 disabled:opacity-50"
+                }, Object.keys(tables).map(n => React.createElement('option', { key:n, value:n }, n)))
+            ),
+
+            // Controls
+            React.createElement('div', { className: "flex justify-center items-center space-x-3 sm:space-x-4 my-5" },
+                !isRunning
+                    ? React.createElement('button', { onClick:handleStart, className:"bg-green-500 hover:bg-green-600 active:bg-green-700 text-white font-bold py-3 px-8 sm:py-4 sm:px-10 rounded-full text-xl sm:text-2xl shadow-lg transform active:scale-95 transition-all" }, "Start")
+                    : React.createElement('button', { onClick:handleStop,  className:"bg-red-500   hover:bg-red-600   active:bg-red-700   text-white font-bold py-3 px-8 sm:py-4 sm:px-10 rounded-full text-xl sm:text-2xl shadow-lg transform active:scale-95 transition-all" }, "Stop"),
+                React.createElement('button', {
+                    onClick:handleReset, disabled:sessionFinished,
+                    className:"font-bold py-3 px-8 sm:py-4 sm:px-10 rounded-full text-xl sm:text-2xl shadow-lg transition-all " +
+                        (sessionFinished ? "bg-gray-700 text-gray-500 cursor-not-allowed" : "bg-gray-600 hover:bg-gray-500 active:bg-gray-700 transform active:scale-95")
+                }, "Reset")
+            ),
+
+            // Completion banner
+            sessionFinished && React.createElement('div', { className: "my-4 p-4 bg-green-900/30 border border-green-700 rounded-lg text-center" },
+                React.createElement('p', { className: "text-green-300 text-lg font-semibold" }, "🎉 Session Complete!"),
+                React.createElement('p', { className: "text-green-400 text-sm mt-2" }, "Great work! Your progress has been saved.")
+            ),
+
+            // Rep schedule table
+            React.createElement('div', { className: "mt-4 mb-4" },
+                React.createElement('div', { className: "flex items-center justify-between mb-3 px-1" },
+                    React.createElement('h2', { className: "text-sm font-medium text-gray-500" }, "Week Schedule"),
+                    React.createElement('span', { className: `text-xs ${m.accentText}` },
+                        config.mode === 'co2' ? 'Fixed hold · ↓ recovery' : '↑ hold · Fixed recovery'
+                    )
+                ),
+                React.createElement('div', { className: "overflow-x-auto rounded-lg border border-gray-800" },
+                    React.createElement('table', { className: "w-full text-xs sm:text-sm border-collapse" },
+                        React.createElement('thead', { className: "bg-gray-800/60" },
+                            React.createElement('tr', null,
+                                React.createElement('th', { className: "text-gray-500 font-medium py-2 text-left pl-3" }, "Rep"),
+                                React.createElement('th', { className: "text-cyan-600  font-medium py-2 text-center" }, "Hold"),
+                                React.createElement('th', { className: "text-orange-600 font-medium py-2 text-center" }, "Recovery")
+                            )
+                        ),
+                        React.createElement('tbody', null,
+                            tableData.map((row, i) =>
+                                React.createElement('tr', {
+                                    key: i,
+                                    className: "border-t border-gray-800/60 " + (i === currentRep && currentPhase !== 'PREP' && !sessionFinished ? 'bg-gray-800/50' : '')
+                                },
+                                    React.createElement('td', { className: "py-2 pl-3 text-gray-400" },
+                                        i === currentRep && currentPhase !== 'PREP' && !sessionFinished
+                                            ? React.createElement('span', { className: "inline-block w-1.5 h-1.5 rounded-full bg-cyan-400 mr-2 align-middle" })
+                                            : null,
+                                        `#${i+1}`
+                                    ),
+                                    React.createElement('td', { className: "py-2 text-center text-cyan-300 font-mono"   }, formatTime(row.bh)),
+                                    React.createElement('td', { className: "py-2 text-center text-orange-300 font-mono" }, formatTime(row.rb))
+                                )
+                            )
+                        )
+                    )
+                )
+            ),
+
+            React.createElement('footer', { className: "text-center mt-2 mb-8 text-gray-600 text-xs space-y-1" },
+                React.createElement('p', null, "Hold your breath during BREATH HOLD."),
+                React.createElement('p', null, "Breathe normally during RECOVERY and Preparation."),
+                React.createElement('p', { className: `mt-1 ${m.accentText}` }, "Progress auto-saves every 2 seconds.")
+            )
+        )
+    );
+};
+
+// ─── App ──────────────────────────────────────────────────────────────────────
+
+const App = () => {
+    const [screen,          setScreen]          = useState('select');
+    const [mode,            setMode]            = useState(null);
+    const [trainingConfig,  setTrainingConfig]  = useState(null);
+    const [savedConfig,     setSavedConfig]     = useState(null);
+    const [savedSession,    setSavedSession]    = useState(null);
+    const [hasSavedSession, setHasSavedSession] = useState(false);
+    const [loading,         setLoading]         = useState(true);
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const [cfg, ses] = await Promise.all([
+                    loadData(STORE_CONFIG,  'current'),
+                    loadData(STORE_SESSION, 'current')
+                ]);
+                if (cfg) setSavedConfig(cfg);
+                if (ses?.timestamp && Date.now() - ses.timestamp < 86_400_000) {
+                    setSavedSession(ses);
+                    setHasSavedSession(true);
+                }
+            } finally { setLoading(false); }
+        })();
+    }, []);
+
+    const handleSelectMode = useCallback((selectedMode) => {
+        setMode(selectedMode);
+        setScreen('setup');
+    }, []);
+
+    const handleStartTraining = useCallback((config, resume = false) => {
+        setTrainingConfig(config);
+        if (!resume) { setSavedSession(null); deleteData(STORE_SESSION, 'current'); }
+        setScreen('training');
+    }, []);
+
+    const handleResume = useCallback(async () => {
+        const config = await loadData(STORE_CONFIG, 'current');
+        if (config) { setTrainingConfig(config); setScreen('training'); }
+    }, []);
+
+    const handleExitToSelect = useCallback(async () => {
+        setScreen('select');
+        const ses = await loadData(STORE_SESSION, 'current');
+        if (ses?.timestamp && Date.now() - ses.timestamp < 86_400_000) {
+            setSavedSession(ses);
+            const cfg = await loadData(STORE_CONFIG, 'current');
+            if (cfg) setSavedConfig(cfg);
+            setHasSavedSession(true);
+        } else {
+            setSavedSession(null);
+            setHasSavedSession(false);
+        }
+    }, []);
+
+    if (loading) return React.createElement('div', {
+        className: "bg-black min-h-screen min-h-[100dvh] flex items-center justify-center text-white"
+    },
+        React.createElement('div', { className: "text-center" },
+            React.createElement('div', { className: "w-12 h-12 rounded-full border-4 border-gray-700 border-t-cyan-400 animate-spin mx-auto mb-4" }),
+            React.createElement('p', { className: "text-gray-500 text-lg" }, "Loading…")
+        )
+    );
+
+    if (screen === 'training' && trainingConfig)
+        return React.createElement(TrainingScreen, { config:trainingConfig, onExit:handleExitToSelect, resumeSession:savedSession });
+
+    if (screen === 'setup' && mode)
+        return React.createElement(SetupScreen, {
+            mode, onStart:handleStartTraining, onBack:()=>setScreen('select'),
+            savedConfig: savedConfig?.mode === mode ? savedConfig : null,
+            hasSavedSession: hasSavedSession && savedConfig?.mode === mode
+        });
+
+    return React.createElement(TypeSelectionScreen, {
+        onSelectMode: handleSelectMode,
+        hasSavedSession, savedConfig,
+        onResume: handleResume
+    });
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+</script>
 </body>
 </html>
+ppl 
