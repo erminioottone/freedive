@@ -80,21 +80,22 @@ export function TrainingNotice() {
     </aside>;
 }
 
-export function TimerDisplay({ session }) {
+export function TimerDisplay({ session, compact = false }) {
     const meta = {
         PREP: ['BREATHE NORMALLY', '#4ade80'], BH: ['BREATH HOLD', '#22d3ee'], RB: ['RECOVERY', '#fb923c'],
     }[session.phase];
     const fraction = Math.max(0, Math.min(1, session.remainingMs / session.phaseDurationMs));
     const circle = 2 * Math.PI * 90;
-    return <div className="relative mx-auto my-5 flex h-64 w-64 flex-col items-center justify-center rounded-full bg-gray-900 sm:h-80 sm:w-80">
+    return <div className={'relative mx-auto flex flex-col items-center justify-center rounded-full bg-gray-900 ' +
+        (compact ? 'my-3 h-44 w-44' : 'my-5 h-64 w-64 sm:h-80 sm:w-80')}>
         <svg viewBox="0 0 200 200" className="absolute inset-0 h-full w-full -rotate-90" aria-hidden="true">
             <circle cx="100" cy="100" r="90" fill="none" stroke="#1f2937" strokeWidth="8" />
             <circle cx="100" cy="100" r="90" fill="none" stroke={meta[1]} strokeWidth="8"
                 strokeDasharray={circle} strokeDashoffset={circle * (1 - fraction)} strokeLinecap="round" />
         </svg>
         <div className="z-10 text-center">
-            <div className="font-mono text-6xl font-light sm:text-7xl" aria-label="Time remaining">{formatTime(Math.ceil(session.remainingMs / 1000))}</div>
-            <p className="mt-2 text-lg font-medium" style={{ color: meta[1] }}>{meta[0]}</p>
+            <div className={'font-mono font-light ' + (compact ? 'text-4xl' : 'text-6xl sm:text-7xl')} aria-label="Time remaining">{formatTime(Math.ceil(session.remainingMs / 1000))}</div>
+            <p className={'mt-2 font-medium ' + (compact ? 'text-sm' : 'text-lg')} style={{ color: meta[1] }}>{meta[0]}</p>
             <p className="mt-1 text-sm text-gray-500">{session.phase === 'PREP' ? 'Relax and breathe' : 'Rep ' + (session.rep + 1) + ' / ' + session.table.length}</p>
         </div>
     </div>;

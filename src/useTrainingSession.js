@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { advancePhase, endHold, historyRecord, pauseSession, stopSession } from './training.js';
 import { discardSession, saveFinishedSession, saveSession } from './storage.js';
+import { watchTimerVisibility } from './timerVisibility.js';
 
-export default function useTrainingSession(initialSession, device) {
+export default function useTrainingSession(initialSession, device, floating) {
     const [session, setSession] = useState(initialSession);
     const [storageError, setStorageError] = useState('');
     const current = useRef(initialSession);
     const deadline = useRef(null);
     const startPending = useRef(false);
+    const isFloatingVisible = floating?.isVisible;
+    const subscribeFloating = floating?.subscribe;
 
     const remaining = useCallback(() => deadline.current === null
         ? current.current.remainingMs : Math.max(0, deadline.current - performance.now()), []);
@@ -64,18 +67,16 @@ export default function useTrainingSession(initialSession, device) {
         const timer = setInterval(() => {
             if (current.current.status === 'running') void persist({ ...current.current, remainingMs: remaining() });
         }, 10000);
-        const hidden = () => {
-            if (document.visibilityState === 'hidden' && current.current.status === 'running') pause();
-        };
-        const pageHidden = () => { if (current.current.status === 'running') pause(); };
-        document.addEventListener('visibilitychange', hidden);
-        window.addEventListener('pagehide', pageHidden);
+        const unwatch = watchTimerVisibility(() => {
+            if (current.current.status === 'running') {
+                pause('Timer hidden. Breathe normally and resume when ready.');
+            }
+        }, { document, window, floating: isFloatingVisible ? { isVisible: isFloatingVisible, subscribe: subscribeFloating } : undefined });
         return () => {
             clearInterval(timer);
-            document.removeEventListener('visibilitychange', hidden);
-            window.removeEventListener('pagehide', pageHidden);
+            unwatch();
         };
-    }, [pause, persist, remaining]);
+    }, [isFloatingVisible, pause, persist, remaining, subscribeFloating]);
 
     const start = useCallback(async () => {
         if (startPending.current || ['running', 'finished', 'stopped'].includes(current.current.status)) return;

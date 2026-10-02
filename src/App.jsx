@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import {
     buildTable, formatTime, historyRecord, MODES, newSession, PROTOCOL_VERSION,
@@ -7,6 +8,7 @@ import {
 import { discardSession, loadData, loadHistory, saveConfig, saveFinishedSession, saveSession } from './storage.js';
 import useDevice from './useDevice.js';
 import useTrainingSession from './useTrainingSession.js';
+import useFloatingTimer from './useFloatingTimer.js';
 import { buttonClass, inputClass, TablePreview, TimeInput, TimerDisplay, TrainingNotice } from './components.jsx';
 
 const effortLabels = { 1: 'Easy', 2: 'Comfortable', 3: 'Challenging', 4: 'Very hard', 5: 'Too hard' };
@@ -119,12 +121,45 @@ function Setup({ mode, savedConfig, history, onStart, onBack }) {
     </div>;
 }
 
+function TrainingControls({ controller }) {
+    const { session } = controller;
+    const running = session.status === 'running';
+    return <div className="space-y-3">
+        {session.phase === 'BH' && running && <button className={buttonClass + ' w-full bg-orange-500 text-black hover:bg-orange-400'} onClick={controller.early}>End hold now</button>}
+        <div className="grid grid-cols-2 gap-3">
+            <button className={buttonClass + ' bg-green-500 text-black hover:bg-green-400'} onClick={running ? () => controller.pause() : controller.start}>
+                {running ? 'Pause' : session.status === 'ready' ? 'Start' : 'Resume'}
+            </button>
+            <button className={buttonClass + ' bg-red-600 text-white hover:bg-red-500'} onClick={controller.stop}>Stop session</button>
+        </div>
+    </div>;
+}
+
+function FloatingTraining({ controller }) {
+    const { session, storageError } = controller;
+    const done = ['finished', 'stopped'].includes(session.status);
+    return <main aria-label="Floating training timer" className="space-y-3 p-4">
+        <h1 className={'text-center text-lg font-bold ' + MODES[session.config.mode].text}>{MODES[session.config.mode].label}</h1>
+        {session.message && <p role="status" className="text-sm text-orange-200">{session.message}</p>}
+        {storageError && <p role="alert" className="text-sm text-red-300">{storageError}</p>}
+        {done ? <>
+            <h2 className="text-center text-xl font-semibold">{session.status === 'finished' ? 'Table finished' : 'Session stopped'}</h2>
+            <p className="text-center text-sm text-gray-400">Return to the training tab to review your log and save feedback.</p>
+        </> : <>
+            <TimerDisplay session={session} compact />
+            {session.status === 'ready' && <p className="text-center text-sm text-gray-400">Ready to start</p>}
+            <TrainingControls controller={controller} />
+            <p className="text-center text-xs leading-relaxed text-gray-400">Keep this timer visible. Closing it while the training tab is hidden pauses the session.</p>
+        </>}
+    </main>;
+}
+
 function Training({ initialSession, onExit, onRepeat }) {
     const device = useDevice();
-    const controller = useTrainingSession(initialSession, device);
+    const floating = useFloatingTimer();
+    const controller = useTrainingSession(initialSession, device, floating);
     const { session } = controller;
     const done = ['finished', 'stopped'].includes(session.status);
-    const running = session.status === 'running';
     const canConfirmAll = session.results.length === session.table.length && session.results.every((result) => result.ending === 'timer');
     const leave = async () => { await controller.exit(); await onExit(); };
     return <div className="space-y-4">
@@ -136,14 +171,18 @@ function Training({ initialSession, onExit, onRepeat }) {
         {controller.storageError && <p role="alert" className="rounded-xl border border-red-700 p-3 text-sm text-red-300">{controller.storageError}</p>}
         {!done && <>
             <TimerDisplay session={session} />
-            <div className="space-y-3">
-                {session.phase === 'BH' && running && <button className={buttonClass + ' w-full bg-orange-500 text-black hover:bg-orange-400'} onClick={controller.early}>End hold now</button>}
-                <div className="grid grid-cols-2 gap-3">
-                    <button className={buttonClass + ' bg-green-500 text-black hover:bg-green-400'} onClick={running ? () => controller.pause() : controller.start}>
-                        {running ? 'Pause' : session.status === 'ready' ? 'Start' : 'Resume'}
+            <TrainingControls controller={controller} />
+            <div className="space-y-2 text-center">
+                {floating.supported ? <>
+                    <button className={buttonClass + ' w-full border border-gray-600 bg-gray-900 text-gray-200'}
+                        disabled={floating.pending} onClick={floating.container ? floating.close : floating.open}>
+                        {floating.pending ? 'Opening floating timer…' : floating.container ? 'Close floating timer' : 'Floating timer'}
                     </button>
-                    <button className={buttonClass + ' bg-red-600 text-white hover:bg-red-500'} onClick={controller.stop}>Stop session</button>
-                </div>
+                    <p className="text-xs text-gray-400">{floating.container
+                        ? 'The floating timer stays visible when you switch tabs. Both views control the same session.'
+                        : 'Open the floating timer before switching tabs to keep training visible and running.'}</p>
+                </> : <p className="text-xs text-gray-400">Floating timer is unavailable in this browser. Keep the training tab visible.</p>}
+                {floating.error && <p role="alert" className="text-sm text-orange-200">{floating.error}</p>}
             </div>
             <p className="text-center text-xs text-gray-400">Pausing or leaving during a hold ends that hold and pauses recovery.</p>
             <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-gray-500">
@@ -181,6 +220,7 @@ function Training({ initialSession, onExit, onRepeat }) {
         <TablePreview table={session.table} mode={session.config.mode} prepTime={session.config.prepTime}
             activeRep={!done && session.phase !== 'PREP' ? session.rep : undefined} results={session.results} />
         {session.config.mode === 'fiph' && <p className="text-xs text-amber-300">Ending a hold early adds its remaining time to recovery, preserving the fixed cycle. Pauses interrupt the cycle.</p>}
+        {floating.container && createPortal(<FloatingTraining controller={controller} />, floating.container)}
     </div>;
 }
 

@@ -10,12 +10,20 @@ Installable, offline-capable dry apnea timer with adjustable CO₂, O₂ and FIP
 - The complete table, longest hold, shortest recovery and duration (including final recovery) are shown before the timer is opened.
 - The illustrative FIPH-inspired dry pyramid is a custom adaptation, not a verified reproduction of William Trubridge's pool protocol or a claim of optimal effectiveness.
 - **End hold now** starts recovery immediately. In the pyramid, unused hold time is added to recovery so the cycle stays constant.
-- Pausing, hiding or leaving the app during a hold records an interruption and pauses recovery. Reloading never resumes an interrupted hold as though apnea continued.
+- Pausing, hiding all timer views or leaving the app during a hold records an interruption and pauses recovery. Reloading never resumes an interrupted hold as though apnea continued.
 - Browser stalls pause the session instead of silently advancing into a new hold. Audio and screen-wake-lock availability are reported accurately.
 - Completed and stopped sessions retain recorded hold durations, early endings, optional difficulty, notes and user confirmation of actual completion.
 - History compares repeats of the same table; a finished timer alone does not confirm physical completion.
 
 These timings are adjustable examples, not individualized training prescriptions. A hold ceiling or recovery duration does not establish physiological safety. Do not hyperventilate. In-water apnea requires direct supervision by a trained, rescue-capable buddy.
+
+## Floating timer
+
+On browsers with the Document Picture-in-Picture API, select **Floating timer** from the training screen before switching tabs. The always-on-top window shows the same countdown, phase and repetition, with Start/Resume, Pause, End hold now and Stop session controls. Both views share one session and log.
+
+Opening the window requires an explicit button gesture; switching tabs alone cannot reliably open it. Support is detected in the current browser. Browsers without the API keep the regular timer and explain that the training tab must remain visible.
+
+Training continues while the floating timer is visible, even if the original tab is hidden. Closing or hiding the floating window when the original tab is also hidden pauses the session and interrupts any active hold into recovery. Closing the floating window while the original tab remains visible keeps training running there. Reloading or closing the original tab still interrupts training; the floating window cannot outlive it. Saving and exiting closes the floating window.
 
 ## Existing data
 
@@ -43,7 +51,7 @@ npm test
 npm run build
 ```
 
-The Node tests cover table bounds, fixed cycles, explicit limits, migration, partial logging and interruption/resume behavior. The GitHub workflow runs tests and a production build on pushes and pull requests.
+The Node tests cover table bounds, fixed cycles, explicit limits, migration, partial logging, interruption/resume behavior and visibility handling with a floating timer. The GitHub workflow runs tests and a production build on pushes and pull requests.
 
 ## Cloudflare Workers Static Assets
 
