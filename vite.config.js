@@ -14,9 +14,9 @@ export default defineConfig({
         'icons/icon-maskable-512.png'
       ],
       manifest: {
-        name: 'Apnea Trainer — CO₂ & O₂ Tables',
+        name: 'Apnea Trainer — Adjustable Apnea Tables',
         short_name: 'Apnea Trainer',
-        description: 'Offline-capable CO₂ and O₂ apnea training tables.',
+        description: 'Adjustable CO₂, O₂ and FIPH-inspired dry tables, an offline timer and a local training log.',
         theme_color: '#000000',
         background_color: '#000000',
         display: 'standalone',
@@ -54,6 +54,7 @@ export default defineConfig({
     })
   ],
   build: {
+    emptyOutDir: true,
     target: 'es2020',
     sourcemap: false,
     cssCodeSplit: true

@@ -1,6 +1,25 @@
 # Apnea Trainer
 
-Production PWA build of the CO₂ / O₂ apnea training application.
+Installable, offline-capable dry apnea timer with adjustable CO₂, O₂ and FIPH-inspired pyramid presets.
+
+## Training controls
+
+- Timings are repeated unchanged between sessions. There is no automatic weekly escalation.
+- Each training type keeps its own last-used settings when switching between presets.
+- Every hold respects the user's explicit hold ceiling. CO₂ recovery decreases only to the chosen minimum; O₂ holds increase only to the ceiling.
+- The complete table, longest hold, shortest recovery and duration (including final recovery) are shown before the timer is opened.
+- The illustrative FIPH-inspired dry pyramid is a custom adaptation, not a verified reproduction of William Trubridge's pool protocol or a claim of optimal effectiveness.
+- **End hold now** starts recovery immediately. In the pyramid, unused hold time is added to recovery so the cycle stays constant.
+- Pausing, hiding or leaving the app during a hold records an interruption and pauses recovery. Reloading never resumes an interrupted hold as though apnea continued.
+- Browser stalls pause the session instead of silently advancing into a new hold. Audio and screen-wake-lock availability are reported accurately.
+- Completed and stopped sessions retain recorded hold durations, early endings, optional difficulty, notes and user confirmation of actual completion.
+- History compares repeats of the same table; a finished timer alone does not confirm physical completion.
+
+These timings are adjustable examples, not individualized training prescriptions. A hold ceiling or recovery duration does not establish physiological safety. Do not hyperventilate. In-water apnea requires direct supervision by a trained, rescue-capable buddy.
+
+## Existing data
+
+The existing IndexedDB name and stores are preserved. Earlier history remains visible as timer-only records. Old starting settings are imported without weekly overload; incompatible old timer snapshots cannot resume and display a notice. New snapshots store their own settings and table.
 
 ## Local development
 
@@ -17,17 +36,26 @@ npm run build
 
 Vite writes the deployable application to `dist/`.
 
+## Validation
+
+```bash
+npm test
+npm run build
+```
+
+The Node tests cover table bounds, fixed cycles, explicit limits, migration, partial logging and interruption/resume behavior. The GitHub workflow runs tests and a production build on pushes and pull requests.
+
 ## Cloudflare Workers Static Assets
 
-Recommended Cloudflare build settings:
+For a Git-connected Cloudflare Worker, use **Settings → Build**:
 
-- **Build command:** `npm run build`
-- **Build output directory:** `dist`
+- **Git repository:** `erminioottone/freedive`
 - **Production branch:** `main`
-- **Non-production builds:** enabled
-- **Cloudflare Access protection:** disabled unless you intentionally want authentication
+- **Root directory:** repository root
+- **Build command:** `npm test && npm run build`
+- **Deploy command:** `npx wrangler deploy`
 
-The included `wrangler.jsonc` also points static assets at `./dist`.
+The included `wrangler.jsonc` points static assets at `./dist`. There is no separate output-directory setting needed for this Workers configuration. The GitHub validation workflow checks the app; deployment is handled by the existing Cloudflare Git integration.
 
 ### Public URL
 
