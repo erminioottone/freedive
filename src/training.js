@@ -5,21 +5,21 @@ export const MAX_SECONDS = 600;
 
 export const MODES = {
     co2: {
-        label: 'CO₂ Table', icon: '↓', color: 'cyan',
+        label: 'CO₂ Table', icon: '↓',
         description: 'Repeat a fixed hold with recovery that decreases to your chosen minimum.',
         pattern: 'Fixed hold · decreasing recovery',
         holdLabel: 'Breath hold', recoveryLabel: 'Starting recovery',
         classes: 'border-cyan-700 bg-cyan-950/30', text: 'text-cyan-400',
     },
     o2: {
-        label: 'O₂ Table', icon: '↑', color: 'purple',
+        label: 'O₂ Table', icon: '↑',
         description: 'Increase holds within one table, up to your chosen ceiling, with fixed recovery.',
         pattern: 'Increasing hold · fixed recovery',
         holdLabel: 'Starting hold', recoveryLabel: 'Recovery between holds',
         classes: 'border-purple-700 bg-purple-950/30', text: 'text-purple-400',
     },
     fiph: {
-        label: 'FIPH-inspired Pyramid', icon: '▲', color: 'amber',
+        label: 'FIPH-inspired Pyramid', icon: '▲',
         description: 'An adjustable dry pyramid inspired by the FIPH pool method. Hold plus recovery stays constant.',
         pattern: 'Pyramid hold · fixed total interval',
         holdLabel: 'Peak hold', recoveryLabel: 'Recovery at the peak',
